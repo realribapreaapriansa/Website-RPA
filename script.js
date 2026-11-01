@@ -34,7 +34,7 @@ const menuGroups = [
     {sheet:'Portfolio',label:'Portfolio'}, {sheet:'Blog',label:'Blog'}, {sheet:'Career_Timeline',label:'Career Timeline'}, {sheet:'Documents',label:'Documents'}, {sheet:'Gallery',label:'Gallery'}
   ]},
   { title: "Website & Tampilan", icon: 'fa-palette', items: [
-    {sheet:'Web_Branding',label:'Web Branding'}, {sheet:'Dynamic_Menu',label:'Dynamic Menu'}, {sheet:'Banners',label:'Banners'}, {sheet:'Popups',label:'Popups'}, {sheet:'Bantuan',label:'Pusat Panduan'}
+    {sheet:'Web_Branding',label:'Web Branding'}, {sheet:'Dynamic_Menu',label:'Dynamic Menu'}, {sheet:'Banners',label:'Banners'}, {sheet:'Popups',label:'Popups'}, {sheet:'Footer',label:'Footer Website'}, {sheet:'Bantuan',label:'Pusat Panduan'}
   ]},
   { title: "Legal", icon: 'fa-scale-balanced', items: [
     {sheet:'Privacy_Policy',label:'Privacy Policy'}, {sheet:'Terms_Conditions',label:'Terms Conditions'}
@@ -3233,37 +3233,40 @@ async function renderPublicContent(
 
   // 2. Tarik Data Prioritas (Menu yang Sedang Diklik)
   try {
-    let first = await getCachedData(priority, force);
-    
-    // Fallback khusus Profil: Jika sheet "Profile" kosong, coba cari sheet "Profil"
-    if (priority === 'Profile' && (!first || !first.data || first.data.length === 0)) {
-       try { first = await getCachedData('Profil', force); } catch(e) {}
-    }
+    if (priority === 'Contact') {
+      renderPublicContact([]);
+    } else {
+      let first = await getCachedData(priority, force);
+      
+      // Fallback khusus Profil: Jika sheet "Profile" kosong, coba cari sheet "Profil"
+      if (priority === 'Profile' && (!first || !first.data || first.data.length === 0)) {
+         try { first = await getCachedData('Profil', force); } catch(e) {}
+      }
 
-    const data = first?.data || [];
+      const data = first?.data || [];
 
-    if (priority === 'Home') renderPublicHome(data);
-    else if (priority === 'Profile') {
-        if (typeof renderPublicProfile === 'function') renderPublicProfile(data);
+      if (priority === 'Home') renderPublicHome(data);
+      else if (priority === 'Profile') {
+          if (typeof renderPublicProfile === 'function') renderPublicProfile(data);
+      }
+      else if (priority === 'Portfolio') renderPublicPortfolio(data);
+      else if (priority === 'Career_Timeline') renderPublicCareer(data);
+      else if (priority === 'Gallery') renderPublicGallery(data);
+      else if (priority === 'Blog') renderPublicBlog(data);
+      else if (priority === 'Documents') renderPublicDocuments(data);
     }
-    else if (priority === 'Portfolio') renderPublicPortfolio(data);
-    else if (priority === 'Career_Timeline') renderPublicCareer(data);
-    else if (priority === 'Gallery') renderPublicGallery(data);
-    else if (priority === 'Blog') renderPublicBlog(data);
-    else if (priority === 'Documents') renderPublicDocuments(data);
-    else if (priority === 'Contact') renderPublicContact(data);
 
   } catch(error) {
     console.warn('Gagal memuat section prioritas:', error);
   }
 
   // 3. Tarik Data Menu Lainnya di Latar Belakang (Tanpa Mengganggu Layar Utama)
-  const backgroundNames = names.filter(name => name !== priority);
+  const backgroundNames = names.filter(name => name !== priority && name !== 'Contact');
   await Promise.allSettled(backgroundNames.map(name => getCachedData(name, force)));
 
   names.forEach(name => {
     // Jangan render ulang jika sudah selesai dirender di blok prioritas atas
-    if (name === priority) return; 
+    if (name === priority || name === 'Contact') return;
 
     const data = memoryCache[name]?.data || [];
 
@@ -3276,7 +3279,6 @@ async function renderPublicContent(
     else if (name === 'Gallery') renderPublicGallery(data);
     else if (name === 'Blog') renderPublicBlog(data);
     else if (name === 'Documents') renderPublicDocuments(data);
-    else if (name === 'Contact') renderPublicContact(data);
   });
 }
 
@@ -3848,12 +3850,6 @@ async function renderDynamicMenu() {
       rows
         .map(
           x => {
-
-            const label =
-              safeText(
-                x.Label
-              );
-
             const section =
               safeText(
                 x.Section,
@@ -3869,6 +3865,11 @@ async function renderDynamicMenu() {
               section === 'profile'
                 ? 'profil'
                 : section;
+
+            const label =
+              key === 'contact'
+                ? 'Chat'
+                : safeText(x.Label);
 
             const url =
               safeUrl(
@@ -3902,6 +3903,7 @@ async function renderDynamicMenu() {
             return `
               <button
                 onclick="switchPublicSection('${key}')"
+                data-sec="${escapeHtml(key)}"
                 class="${
                   isMobile
                     ? 'text-left font-bold text-slate-700 p-2 border-b'
@@ -4432,6 +4434,32 @@ async function loadAdminModule(sheetName, force = false) {
   const existingChat = document.getElementById('admin-live-chat-panel');
   if (existingChat) existingChat.remove();
 
+    if (sheetName === 'Footer') {
+      if (welcomePanel) {
+        welcomePanel.classList.remove('hidden');
+        welcomePanel.innerHTML = '<div class="data-loading"><div class="data-loading-inner"><span class="data-loading-spinner"></span><span>Memuat pengaturan footer...</span></div></div>';
+      }
+      tablePanel.classList.add('hidden');
+      if (addButton) addButton.classList.add('hidden');
+
+      document.querySelectorAll('.mod-btn').forEach(button => {
+        const active = button.dataset.mod === sheetName;
+        button.classList.toggle('bg-blue-600', active);
+        button.classList.toggle('text-white', active);
+        button.classList.toggle('shadow-md', active);
+        button.classList.toggle('text-slate-300', !active && button.dataset.mod !== 'admin-dash');
+      });
+
+      try {
+        const result = await getCachedData('Contact', force);
+        renderAdminFooterEditor(result.data || []);
+      } catch (error) {
+        if (welcomePanel) welcomePanel.innerHTML = '<div class="p-6 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 font-bold">Footer tidak dapat dimuat. Periksa koneksi lalu refresh.</div>';
+        showToast(error.message || 'Gagal memuat data footer.', 'error');
+      }
+      return;
+    }
+
   // === JIKA KLIK MENU LIVE CHAT ===
   if (sheetName === 'Live_Chat') {
       tablePanel.classList.add('hidden'); // Sembunyikan tabel standar
@@ -4495,6 +4523,84 @@ async function loadAdminModule(sheetName, force = false) {
       tbody.innerHTML = '<tr><td colspan="10" class="text-center py-12 text-rose-600 font-bold">Gagal memuat data modul. Periksa koneksi lalu refresh.</td></tr>';
     }
     showToast(error.message || 'Gagal memuat data modul.', 'error');
+  }
+}
+
+function renderAdminFooterEditor(rows) {
+  const panel = document.getElementById('welcome-panel');
+  if (!panel) return;
+
+  const contact = rows.find(row => row.Status === 'publish' || row.Status === 'active') || rows[0];
+  if (!contact) {
+    panel.innerHTML = '<div class="p-6 rounded-xl border border-amber-200 bg-amber-50 text-amber-800 font-bold">Data Contact belum tersedia. Tambahkan satu data Contact terlebih dahulu.</div>';
+    return;
+  }
+
+  const fields = [
+    { key: 'Email', label: 'Email', type: 'email' },
+    { key: 'WhatsApp', label: 'WhatsApp', type: 'tel' },
+    { key: 'Address', label: 'Alamat', type: 'textarea' },
+    { key: 'Instagram_URL', label: 'Instagram URL', type: 'url' },
+    { key: 'Facebook_URL', label: 'Facebook URL', type: 'url' },
+    { key: 'LinkedIn_URL', label: 'LinkedIn URL', type: 'url' },
+    { key: 'YouTube_URL', label: 'YouTube URL', type: 'url' },
+    { key: 'GitHub_URL', label: 'GitHub URL', type: 'url' }
+  ];
+
+  panel.innerHTML = `
+    <div class="max-w-4xl mx-auto space-y-5 animate-fade-in">
+      <div class="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+        <div><p class="text-xs font-black uppercase tracking-widest text-blue-600">Website & Tampilan</p><h2 class="mt-1 text-2xl sm:text-3xl font-black text-slate-900">Footer Website</h2></div>
+        <span class="text-xs font-bold text-slate-500">Data tersimpan pada Contact</span>
+      </div>
+      <form data-footer-editor data-record-id="${escapeHtml(safeText(contact.ContactID, ''))}" class="bg-white border border-slate-200 rounded-2xl p-4 sm:p-7 shadow-sm">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          ${fields.map(field => {
+            const value = escapeHtml(safeText(contact[field.key], ''));
+            const control = field.type === 'textarea'
+              ? `<textarea data-footer-field="${field.key}" rows="3" class="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:border-blue-500">${value}</textarea>`
+              : `<input data-footer-field="${field.key}" type="${field.type}" value="${value}" class="w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:border-blue-500">`;
+            return `<label class="block text-xs font-bold text-slate-700">${field.label}${control}</label>`;
+          }).join('')}
+        </div>
+        <div class="mt-6 flex justify-end">
+          <button type="button" onclick="saveFooterSettings(this)" class="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-sm shadow-lg shadow-blue-600/20"><i class="fas fa-floppy-disk mr-2"></i>Simpan Footer</button>
+        </div>
+      </form>
+    </div>`;
+}
+
+async function saveFooterSettings(button) {
+  const form = button?.closest('[data-footer-editor]');
+  const recordId = form?.dataset.recordId;
+  if (!form || !recordId) return showToast('ID Contact tidak ditemukan.', 'error');
+
+  const data = { id: recordId };
+  form.querySelectorAll('[data-footer-field]').forEach(field => {
+    data[field.dataset.footerField] = field.value.trim();
+  });
+
+  toggleLoader(true);
+  try {
+    const result = await apiCall('POST', {
+      action: 'update',
+      sheet: 'Contact',
+      user: currentUser?.UserID || 'System',
+      data
+    });
+
+    if (result?.status !== 'success') {
+      showToast(result?.message || 'Footer gagal disimpan.', 'error');
+      return;
+    }
+
+    invalidateCache('Contact');
+    showToast(result.message || 'Footer berhasil diperbarui.', 'success');
+    await renderDynamicFooter();
+  } catch (error) {
+    showToast(error.message || 'Gagal menyimpan footer.', 'error');
+  } finally {
+    toggleLoader(false);
   }
 }
 
@@ -7380,63 +7486,68 @@ async function renderAdminDashboardStats() {
    FOOTER DINAMIS (OTOMATIS BERADA DI PALING BAWAH HALAMAN)
    ================================================================ */
 async function renderDynamicFooter() {
-    let footer = document.getElementById('main-dynamic-footer');
-    if (!footer) {
-        footer = document.createElement('footer');
-        footer.id = 'main-dynamic-footer';
-        footer.className = 'bg-slate-900 text-slate-300 py-10 md:py-12 border-t border-slate-800 w-full mt-auto shrink-0 z-10';
-        
-        const pubView = document.getElementById('view-public');
-        if (pubView) {
-            pubView.classList.add('flex', 'flex-col');
-            pubView.appendChild(footer);
-        }
-    }
-    
+  const footer = document.getElementById('main-footer');
+  const pubView = document.getElementById('view-public');
+  if (!footer || !pubView) return;
+
+  pubView.classList.add('flex', 'flex-col');
+  if (footer.parentElement !== pubView) pubView.appendChild(footer);
+  footer.classList.remove('hidden');
+
+  const siteName = document.getElementById('footer-site-name');
+  const aboutText = document.getElementById('footer-about-text');
+  const contactInfo = document.getElementById('footer-contact-info');
+  const socialLinks = document.getElementById('footer-social-links');
+  if (siteName) siteName.textContent = document.title || 'Riba Prea Apriansa';
+  if (contactInfo) contactInfo.innerHTML = '<p>Email not provided</p><p>Address not provided</p>';
+  if (socialLinks) socialLinks.innerHTML = '';
+
     try {
-        const res = await getCachedData('Contact', true);
-        const x = (res.data && res.data.length) ? (res.data.find(a => a.Status === 'publish' || a.Status === 'active') || res.data[0]) : null;
-        
-        let socHtml = '';
-        let contHtml = '<p class="text-slate-500 animate-pulse">Memuat kontak...</p>';
-        
-        if (x) {
-            contHtml = `
-                <p class="flex items-center gap-3 hover:text-white transition-colors"><i class="fas fa-envelope w-5 text-slate-500"></i> ${escapeHtml(safeText(x.Email, '-'))}</p>
-                <p class="flex items-center gap-3 hover:text-white transition-colors mt-2"><i class="fas fa-phone w-5 text-slate-500"></i> ${escapeHtml(safeText(x.WhatsApp, '-'))}</p>
-                <p class="flex items-start gap-3 hover:text-white transition-colors mt-2"><i class="fas fa-map-marker-alt w-5 text-slate-500 mt-1"></i> <span>${escapeHtml(safeText(x.Address, '-'))}</span></p>
-            `;
-            const links = [
-                { key: 'Instagram_URL', icon: 'fa-instagram', color: 'hover:bg-pink-600' },
-                { key: 'Facebook_URL', icon: 'fa-facebook-f', color: 'hover:bg-blue-600' },
-                { key: 'LinkedIn_URL', icon: 'fa-linkedin-in', color: 'hover:bg-blue-700' },
-                { key: 'YouTube_URL', icon: 'fa-youtube', color: 'hover:bg-rose-600' },
-                { key: 'GitHub_URL', icon: 'fa-github', color: 'hover:bg-slate-700' }
-            ];
-            socHtml = links.map(l => safeUrl(x[l.key]) ? `<a href="${safeUrl(x[l.key])}" target="_blank" class="w-10 h-10 rounded-full bg-slate-800 text-white flex items-center justify-center transition-all ${l.color}"><i class="fab ${l.icon}"></i></a>` : '').join('');
-        }
-        
-        footer.innerHTML = `
-        <div class="max-w-7xl mx-auto px-6 grid grid-cols-1 md:grid-cols-3 gap-8 text-sm">
-            <div>
-                <h4 class="text-white font-black mb-5 uppercase tracking-widest text-xs">Hubungi Kami</h4>
-                <div class="space-y-3">${contHtml}</div>
-            </div>
-            <div>
-                <h4 class="text-white font-black mb-5 uppercase tracking-widest text-xs">Informasi Legal</h4>
-                <div class="flex flex-col space-y-3">
-                    <button onclick="openModal('privacy')" class="text-left hover:text-blue-400 transition-colors flex items-center gap-2"><i class="fas fa-shield-alt text-slate-500"></i> Kebijakan Privasi</button>
-                    <button onclick="openModal('terms')" class="text-left hover:text-blue-400 transition-colors flex items-center gap-2"><i class="fas fa-file-contract text-slate-500"></i> Syarat & Ketentuan</button>
-                    <button onclick="openHelpCenter()" class="text-left hover:text-blue-400 transition-colors flex items-center gap-2"><i class="fas fa-life-ring text-slate-500"></i> Pusat Bantuan</button>
-                </div>
-            </div>
-            <div>
-                <h4 class="text-white font-black mb-5 uppercase tracking-widest text-xs">Sosial Media</h4>
-                <div class="flex flex-wrap gap-3">${socHtml}</div>
-            </div>
-        </div>
-        <div class="text-center text-[10px] text-slate-500 mt-10 pt-6 border-t border-slate-800 max-w-7xl mx-auto px-6 font-bold uppercase tracking-wider">&copy; 2026 RIBA PREA APRIANSA Kolaborasi Dengan Perusahaan ZEXRAPS. Seluruh konten dilindungi oleh undang-undang Negara Kesatuan Republik Indonesia.</div>`;
-    } catch (e) {}
+    const [contactResult, homeResult] = await Promise.allSettled([
+      getCachedData('Contact', true),
+      getCachedData('Home')
+    ]);
+    if (contactResult.status === 'rejected') throw contactResult.reason;
+
+    const contacts = contactResult.value.data || [];
+    const contact = contacts.find(row => row.Status === 'publish' || row.Status === 'active') || contacts[0] || {};
+    const homes = homeResult.status === 'fulfilled' ? homeResult.value.data || [] : [];
+    const home = homes.find(row => row.Status === 'publish' || row.Status === 'active') || homes[0] || {};
+
+    if (siteName) siteName.textContent = safeText(home.Site_Name, document.title || 'Riba Prea Apriansa');
+    if (aboutText) aboutText.textContent = safeText(home.Description || home.Subtitle, 'Portfolio and professional updates.');
+
+    const email = safeText(contact.Email);
+    const phone = safeText(contact.WhatsApp);
+    const address = safeText(contact.Address);
+    const emailMarkup = email
+      ? `<p><i class="fas fa-envelope w-5 text-slate-500 mr-2"></i><a href="mailto:${escapeHtml(email)}" class="footer-nav-link">${escapeHtml(email)}</a></p>`
+      : '<p>Email not provided</p>';
+    const phoneDigits = phone.replace(/\D/g, '');
+    const phoneMarkup = phone
+      ? `<p><i class="fas fa-phone w-5 text-slate-500 mr-2"></i>${phoneDigits ? `<a href="tel:${phoneDigits}" class="footer-nav-link">${escapeHtml(phone)}</a>` : escapeHtml(phone)}</p>`
+      : '';
+    const addressMarkup = address
+      ? `<p class="flex items-start"><i class="fas fa-location-dot w-5 text-slate-500 mr-2 mt-1"></i><span>${escapeHtml(address)}</span></p>`
+      : '<p>Address not provided</p>';
+    if (contactInfo) contactInfo.innerHTML = `${emailMarkup}${phoneMarkup}${addressMarkup}`;
+
+    const links = [
+      { key: 'Instagram_URL', label: 'Instagram', icon: 'fa-instagram', color: 'hover:bg-pink-600' },
+      { key: 'Facebook_URL', label: 'Facebook', icon: 'fa-facebook-f', color: 'hover:bg-blue-600' },
+      { key: 'LinkedIn_URL', label: 'LinkedIn', icon: 'fa-linkedin-in', color: 'hover:bg-blue-700' },
+      { key: 'YouTube_URL', label: 'YouTube', icon: 'fa-youtube', color: 'hover:bg-rose-600' },
+      { key: 'GitHub_URL', label: 'GitHub', icon: 'fa-github', color: 'hover:bg-slate-700' }
+    ];
+    if (socialLinks) {
+      socialLinks.innerHTML = links.map(link => {
+        const url = safeUrl(contact[link.key]);
+        return url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" aria-label="${link.label}" title="${link.label}" class="w-10 h-10 rounded-lg bg-slate-800 text-white flex items-center justify-center transition-colors ${link.color}"><i class="fab ${link.icon}"></i></a>` : '';
+      }).join('');
+    }
+  } catch (error) {
+    console.warn('Footer ditampilkan dengan data fallback:', error);
+  }
 }
 
 /* ================================================================
@@ -7491,34 +7602,40 @@ function buildChatUI(roleContext) {
     ` : '';
 
     return `
-    <div class="w-full h-[550px] bg-slate-100 rounded-3xl shadow-sm flex overflow-hidden border border-slate-200 animate-fade-in">
-        <div class="w-[70px] md:w-1/3 bg-white border-r border-slate-200 flex flex-col h-full shrink-0 z-10">
-            <div class="h-16 bg-slate-50 border-b border-slate-200 flex items-center px-4 font-black text-slate-700 shrink-0 justify-center md:justify-start">
-                <span class="hidden md:block">Pesan Inbox</span><i class="fas fa-comments md:hidden text-2xl text-emerald-500"></i>
+    <div class="chat-layout w-full bg-slate-100 rounded-2xl sm:rounded-3xl shadow-sm flex overflow-hidden border border-slate-200 animate-fade-in">
+      <div class="chat-sidebar w-[70px] md:w-1/3 bg-white border-r border-slate-200 flex flex-col h-full shrink-0 z-10">
+        <div class="h-14 sm:h-16 bg-slate-50 border-b border-slate-200 flex items-center px-4 font-black text-slate-700 shrink-0 justify-center md:justify-start">
+          <span>Ruang Chat</span>
             </div>
             <div class="overflow-y-auto flex-1 custom-scrollbar" id="chat-room-list">
                 ${roleContext === 'admin' ? stdRooms + adminRooms : stdRooms}
             </div>
         </div>
-        <div class="flex-1 bg-[url('https://i.pinimg.com/originals/8c/98/99/8c98994518b575bfd8c949e91d20548b.jpg')] bg-cover bg-center flex flex-col relative h-full">
+      <div class="chat-conversation flex-1 min-w-0 bg-[url('https://i.pinimg.com/originals/8c/98/99/8c98994518b575bfd8c949e91d20548b.jpg')] bg-cover bg-center flex flex-col relative h-full">
             <div class="absolute inset-0 bg-white/60 backdrop-blur-[2px]"></div>
-            <div class="h-16 bg-slate-50/90 backdrop-blur-md border-b border-slate-200 flex items-center justify-between px-4 shrink-0 shadow-sm z-10">
+        <div class="h-14 sm:h-16 bg-slate-50/90 backdrop-blur-md border-b border-slate-200 flex items-center justify-between px-3 sm:px-4 shrink-0 shadow-sm z-10">
                 <div class="flex items-center gap-3">
+            <button type="button" onclick="showChatRooms()" class="chat-room-back w-10 h-10 rounded-xl bg-white border border-slate-200 text-slate-600 items-center justify-center" aria-label="Kembali ke daftar chat" title="Daftar chat"><i class="fas fa-arrow-left"></i></button>
                     <div class="w-10 h-10 rounded-full bg-emerald-500 text-white flex items-center justify-center" id="chat-header-bg"><i class="fas fa-globe" id="chat-header-icon"></i></div>
                     <div><h4 class="font-bold text-slate-800 text-sm" id="chat-header-title">Global Publik</h4><p class="text-[10px] text-emerald-600 font-bold" id="chat-header-status">Online</p></div>
                 </div>
             </div>
             <div class="flex-1 overflow-y-auto p-4 space-y-3 custom-scrollbar z-10 flex flex-col" id="chat-messages-container"></div>
-            <div class="bg-slate-50 p-3 border-t border-slate-200 flex items-end gap-2 shrink-0 z-10">
-                <textarea id="chat-input-msg" rows="1" placeholder="Ketik pesan..." class="flex-1 resize-none rounded-2xl bg-white border border-slate-300 py-3.5 px-4 text-sm outline-none focus:border-emerald-500 max-h-24 custom-scrollbar shadow-inner"></textarea>
-                <button onclick="sendChatMessage()" class="w-12 h-12 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0 hover:bg-emerald-600 transition-colors shadow-md"><i class="fas fa-paper-plane"></i></button>
+        <div class="bg-slate-50 p-2.5 sm:p-3 border-t border-slate-200 flex items-end gap-2 shrink-0 z-10">
+          <textarea id="chat-input-msg" rows="1" placeholder="Tulis pesan..." class="flex-1 min-w-0 resize-none rounded-xl sm:rounded-2xl bg-white border border-slate-300 py-3 px-3 sm:px-4 text-sm outline-none focus:border-emerald-500 max-h-24 custom-scrollbar shadow-inner"></textarea>
+          <button onclick="sendChatMessage()" class="w-11 h-11 sm:w-12 sm:h-12 rounded-xl sm:rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0 hover:bg-emerald-600 transition-colors shadow-md" aria-label="Kirim pesan" title="Kirim"><i class="fas fa-paper-plane"></i></button>
             </div>
         </div>
     </div>`;
 }
 
+  function showChatRooms() {
+    document.querySelectorAll('.chat-layout').forEach(layout => layout.classList.add('show-chat-rooms'));
+  }
+
 function switchChatRoom(room) {
     activeChatRoom = room;
+    document.querySelectorAll('.chat-layout').forEach(layout => layout.classList.remove('show-chat-rooms'));
     document.querySelectorAll('.chat-room-btn').forEach(btn => btn.classList.remove('bg-emerald-50', 'active'));
     const activeBtn = document.getElementById('room-btn-' + room);
     if (activeBtn) activeBtn.classList.add('bg-emerald-50', 'active');

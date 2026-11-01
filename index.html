@@ -257,7 +257,7 @@
         <button onclick="switchPublicSection('career')" class="nav-btn relative text-sm font-semibold text-slate-600 hover:text-blue-600 pb-1" data-sec="career">Career Center</button>
         <button onclick="switchPublicSection('gallery')" class="nav-btn relative text-sm font-semibold text-slate-600 hover:text-blue-600 pb-1" data-sec="gallery">Gallery</button>
         <button onclick="switchPublicSection('blog')" class="nav-btn relative text-sm font-semibold text-slate-600 hover:text-blue-600 pb-1" data-sec="blog">Blog</button>
-        <button onclick="switchPublicSection('contact')" class="nav-btn relative text-sm font-semibold text-slate-600 hover:text-blue-600 pb-1" data-sec="contact">Contact</button>
+        <button onclick="switchPublicSection('contact')" class="nav-btn relative text-sm font-semibold text-slate-600 hover:text-blue-600 pb-1" data-sec="contact">Chat</button>
       </nav>
 
       <div class="flex items-center gap-2 sm:gap-3">
@@ -277,7 +277,7 @@
         <button onclick="switchPublicSection('career'); this.parentElement.classList.add('hidden')" class="text-left font-bold text-slate-700 p-2 border-b">📄 Career Center</button>
         <button onclick="switchPublicSection('gallery'); this.parentElement.classList.add('hidden')" class="text-left font-bold text-slate-700 p-2 border-b">🖼️ Gallery</button>
         <button onclick="switchPublicSection('blog'); this.parentElement.classList.add('hidden')" class="text-left font-bold text-slate-700 p-2 border-b">📝 Blog</button>
-        <button onclick="switchPublicSection('contact'); this.parentElement.classList.add('hidden')" class="text-left font-bold text-slate-700 p-2">📞 Contact</button>
+        <button onclick="switchPublicSection('contact'); this.parentElement.classList.add('hidden')" class="text-left font-bold text-slate-700 p-2"><i class="fas fa-comments w-6 text-emerald-600"></i> Chat</button>
     </div>
 
     <!-- REVISI: flex-1 menjamin sisa ruang terisi agar footer tidak naik saat main kosong -->
@@ -289,6 +289,7 @@
        <section id="pub-sec-gallery" class="pub-sec hidden w-full max-w-6xl mx-auto p-6 md:p-12"><div id="public-gallery-content" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"></div></section>
        <section id="pub-sec-blog" class="pub-sec hidden w-full max-w-6xl mx-auto p-6 md:p-12"><div id="public-blog-content" class="grid grid-cols-1 md:grid-cols-2 gap-6"></div></section>
        <section id="pub-sec-documents" class="pub-sec hidden w-full max-w-6xl mx-auto p-6 md:p-12"><div id="public-documents-content" class="grid grid-cols-1 md:grid-cols-2 gap-5"></div></section>
+    <section id="pub-sec-contact" class="pub-sec hidden w-full max-w-6xl mx-auto p-3 sm:p-5 md:p-8"><div id="public-contact-content" class="w-full"></div></section>
     </main>
   </div>
 
@@ -653,26 +654,30 @@
      FOOTER BAWAH (STANDAR PROFESIONAL)
      ======================================================= -->
 <footer id="main-footer" class="bg-slate-900 text-slate-300 py-10 md:py-12 border-t border-slate-800 w-full z-20 relative mt-auto hidden">
-    <div class="max-w-7xl mx-auto px-6 grid grid-cols-1 md:grid-cols-3 gap-8 text-sm">
-        <!-- Kolom 1: Kontak -->
+    <div class="max-w-7xl mx-auto px-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-10 text-sm">
         <div>
-            <h4 class="text-white font-black mb-5 uppercase tracking-widest text-xs">Hubungi Kami</h4>
-            <div id="footer-contact-info" class="space-y-3">
-                <p class="text-slate-500 animate-pulse">Memuat kontak...</p>
-            </div>
+            <h3 id="footer-site-name" class="text-white font-black text-lg">Riba Prea Apriansa</h3>
+            <p id="footer-about-text" class="mt-3 text-slate-400 leading-6">Portfolio and professional updates.</p>
         </div>
-        <!-- Kolom 2: Navigasi & Legal -->
         <div>
-            <h4 class="text-white font-black mb-5 uppercase tracking-widest text-xs">Informasi Legal</h4>
-            <div class="flex flex-col space-y-3">
-                <button onclick="openModal('privacy')" class="text-left hover:text-blue-400 transition-colors flex items-center gap-2"><i class="fas fa-shield-alt text-slate-500"></i> Kebijakan Privasi</button>
-                <button onclick="openModal('terms')" class="text-left hover:text-blue-400 transition-colors flex items-center gap-2"><i class="fas fa-file-contract text-slate-500"></i> Syarat & Ketentuan</button>
-                <button onclick="openHelpCenter()" class="text-left hover:text-blue-400 transition-colors flex items-center gap-2"><i class="fas fa-life-ring text-slate-500"></i> Pusat Bantuan</button>
-            </div>
+            <h4 class="text-white font-black mb-4 uppercase tracking-widest text-xs">Contact</h4>
+            <address id="footer-contact-info" class="not-italic space-y-3 text-slate-400">
+                <p>Email and contact information</p>
+            </address>
         </div>
-        <!-- Kolom 3: Sosial Media -->
         <div>
-            <h4 class="text-white font-black mb-5 uppercase tracking-widest text-xs">Sosial Media</h4>
+            <h4 class="text-white font-black mb-4 uppercase tracking-widest text-xs">Resources</h4>
+            <nav class="flex flex-col items-start gap-3">
+                <button onclick="switchPublicSection('home')" class="footer-nav-link">Home</button>
+                <button onclick="switchPublicSection('portfolio')" class="footer-nav-link">Portfolio</button>
+                <button onclick="switchPublicSection('contact')" class="footer-nav-link">Chat</button>
+                <button onclick="openModal('privacy')" class="footer-nav-link">Privacy Policy</button>
+                <button onclick="openModal('terms')" class="footer-nav-link">Terms & Conditions</button>
+                <button onclick="openHelpCenter()" class="footer-nav-link">Help Center</button>
+            </nav>
+        </div>
+        <div>
+            <h4 class="text-white font-black mb-4 uppercase tracking-widest text-xs">Follow</h4>
             <div id="footer-social-links" class="flex flex-wrap gap-3"></div>
         </div>
     </div>
