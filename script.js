@@ -346,7 +346,7 @@ document.addEventListener(
   function(e) {
     if (
       e.target &&
-      e.target.id === 'att-code'
+      ['att-code', 'recovery-otp'].includes(e.target.id)
     ) {
       e.target.value =
         e.target.value
@@ -409,6 +409,99 @@ async function loadFaceDetectionModel() {
   }
 }
 
+const FACE_POSE_THRESHOLD = 0.14;
+const FACE_DESCRIPTOR_MATCH_THRESHOLD = 0.6;
+
+function estimateFacePose(detection) {
+  const points = detection?.landmarks?.positions;
+  if (!points || points.length < 48) return null;
+
+  const averageX = indices => indices.reduce((sum, index) => sum + points[index].x, 0) / indices.length;
+  const eyeCenter = (averageX([36, 37, 38, 39, 40, 41]) + averageX([42, 43, 44, 45, 46, 47])) / 2;
+  const eyeDistance = Math.abs(averageX([42, 43, 44, 45, 46, 47]) - averageX([36, 37, 38, 39, 40, 41]));
+  if (!eyeDistance) return null;
+
+  const yawOffset = (points[30].x - eyeCenter) / eyeDistance;
+  if (yawOffset < -FACE_POSE_THRESHOLD) return 'right';
+  if (yawOffset > FACE_POSE_THRESHOLD) return 'left';
+  return 'front';
+}
+
+function expectedFacePose(step) {
+  return ({ 1: 'front', 2: 'right', 3: 'left' })[step] || null;
+}
+
+function faceDescriptorDistance(first, second) {
+  if (!Array.isArray(first) || !Array.isArray(second) || first.length !== 128 || second.length !== 128) return Infinity;
+  return Math.sqrt(first.reduce((sum, value, index) => sum + (value - second[index]) ** 2, 0));
+}
+
+function getRegistrationFullName() {
+  const first = document.getElementById('reg-first-name')?.value.trim() || '';
+  const middle = document.getElementById('reg-middle-name')?.value.trim() || '';
+  const last = document.getElementById('reg-last-name')?.value.trim() || '';
+  const fullName = [first, middle, last].filter(Boolean).join(' ');
+  const legacyField = document.getElementById('reg-name');
+  if (legacyField) legacyField.value = fullName;
+  return fullName;
+}
+
+function isRegistrationNameComplete() {
+  return Boolean(
+    document.getElementById('reg-first-name')?.value.trim() &&
+    document.getElementById('reg-last-name')?.value.trim()
+  );
+}
+
+async function captureCompanyLocation() {
+  const addressInput = document.getElementById('reg-company-address');
+  const mapFrame = document.getElementById('company-location-map-frame');
+  const mapContainer = document.getElementById('company-location-map');
+  const mapLink = document.getElementById('company-location-map-link');
+  const status = document.getElementById('company-location-status');
+  const button = document.getElementById('btn-company-location');
+  if (!addressInput || !mapFrame || !mapContainer || !mapLink || !status || !button) return;
+
+  if (!navigator.geolocation) {
+    status.textContent = 'Browser ini tidak mendukung akses lokasi. Anda dapat memasukkan koordinat secara manual.';
+    return showToast('Lokasi otomatis tidak didukung browser ini.', 'warning');
+  }
+
+  button.disabled = true;
+  status.textContent = 'Meminta izin lokasi perangkat...';
+
+  try {
+    const position = await new Promise((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(resolve, reject, {
+        enableHighAccuracy: true,
+        timeout: 15000,
+        maximumAge: 60000
+      });
+    });
+    const latitude = position.coords.latitude;
+    const longitude = position.coords.longitude;
+    const coordinates = `${latitude.toFixed(6)}, ${longitude.toFixed(6)}`;
+    const mapUrl = `https://www.google.com/maps?q=${latitude},${longitude}`;
+
+    addressInput.value = coordinates;
+    document.getElementById('reg-company-location-link').value = mapUrl;
+    mapFrame.src = `https://maps.google.com/maps?q=${latitude},${longitude}&z=16&output=embed`;
+    mapLink.href = mapUrl;
+    mapContainer.classList.remove('hidden');
+    status.textContent = 'Lokasi ditemukan. Periksa pin peta sebelum melanjutkan.';
+  } catch (error) {
+    const message = error.code === 1
+      ? 'Izin lokasi ditolak. Aktifkan izin lokasi atau gunakan koordinat secara manual.'
+      : error.code === 3
+        ? 'Pencarian lokasi melewati batas waktu. Coba lagi.'
+        : 'Lokasi belum berhasil ditemukan. Periksa GPS dan koneksi lalu coba lagi.';
+    status.textContent = message;
+    showToast(message, 'warning');
+  } finally {
+    button.disabled = false;
+  }
+}
+
 /* ================================================================
    CAPTURE FACE
    FUNGSI GLOBAL - BISA DIPANGGIL AUTO CAPTURE DAN TOMBOL
@@ -466,14 +559,15 @@ async function captureFace() {
 
   /* --- EKSTRAKSI 128 TITIK WAJAH --- */
   let descriptorArr = [];
+  let detectionResult = null;
   try {
-    const detection = await faceapi.detectSingleFace(canvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.45 }))
+    detectionResult = await faceapi.detectSingleFace(canvas, new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.45 }))
       .withFaceLandmarks()
       .withFaceDescriptor();
 
-    if (detection) {
+    if (detectionResult) {
       // Ubah Float32Array menjadi standar Array Javascript agar bisa di-JSON
-      descriptorArr = Array.from(detection.descriptor); 
+      descriptorArr = Array.from(detectionResult.descriptor);
     } else {
       showToast('Wajah terlalu buram/gelap untuk diekstrak. Coba lagi.', 'warning');
       return false;
@@ -482,6 +576,24 @@ async function captureFace() {
     console.error('Descriptor error:', e);
     showToast('Pemindaian wajah gagal. Periksa pencahayaan dan coba lagi.', 'error');
     return false;
+  }
+
+  if (currentFaceMode === 'register') {
+    const expectedPose = expectedFacePose(faceCaptureStep);
+    const detectedPose = estimateFacePose(detectionResult);
+    if (detectedPose !== expectedPose) {
+      const direction = expectedPose === 'front' ? 'depan' : expectedPose === 'right' ? 'kanan' : 'kiri';
+      showToast(`Arah wajah belum cocok. Hadap ${direction} sesuai panduan kamera.`, 'warning');
+      return false;
+    }
+
+    if (faceCaptureStep > 1) {
+      const distance = faceDescriptorDistance(tempFaceData.descriptors?.front, descriptorArr);
+      if (distance > FACE_DESCRIPTOR_MATCH_THRESHOLD) {
+        showToast('Wajah tidak cukup cocok dengan foto depan. Pastikan orang dan pencahayaan sama.', 'error');
+        return false;
+      }
+    }
   }
   /* --------------------------------- */
 
@@ -543,6 +655,7 @@ async function captureFace() {
     if (faceCaptureStep === 1) {
       tempFaceData.front = base64Data;
       tempFaceData.descriptor = descriptorArr; // Simpan 128 titik
+      tempFaceData.descriptors = { front: descriptorArr };
       faceCaptureStep = 2;
       faceStableCount = 0;
       faceAutoCaptureRunning = true; // Block kamera sementara
@@ -562,6 +675,7 @@ async function captureFace() {
     /* FOTO KANAN */
     if (faceCaptureStep === 2) {
       tempFaceData.right = base64Data;
+      tempFaceData.descriptors.right = descriptorArr;
       faceCaptureStep = 3;
       faceStableCount = 0;
       faceAutoCaptureRunning = true; // Block kamera sementara
@@ -581,6 +695,7 @@ async function captureFace() {
     /* FOTO KIRI */
     if (faceCaptureStep === 3) {
       tempFaceData.left = base64Data;
+      tempFaceData.descriptors.left = descriptorArr;
       isFaceVerified = true;
       faceStableCount = 0;
       faceAutoCaptureRunning = false;
@@ -598,7 +713,7 @@ async function captureFace() {
 
       closeFaceVerification();
       checkPasswordMatch();
-      showToast('3 foto wajah DEPAN, KANAN, dan KIRI berhasil disimpan.', 'success');
+      showToast('Tiga pose terdeteksi dan cocok dengan foto wajah yang sama.', 'success');
       return true;
     }
     return false;
@@ -766,9 +881,21 @@ function startAutomaticFaceDetection() {
                 inputSize: 320,
                 scoreThreshold: 0.45
               })
-          );
+          ).withFaceLandmarks();
 
         if (detection) {
+          if (currentFaceMode === 'register') {
+            const expected = expectedFacePose(faceCaptureStep);
+            const detected = estimateFacePose(detection);
+            if (detected !== expected) {
+              faceStableCount = 0;
+              if (instruction) {
+                const direction = expected === 'front' ? 'depan' : expected === 'right' ? 'kanan' : 'kiri';
+                instruction.innerText = `Arah belum sesuai. Hadap ${direction} sampai terdeteksi.`;
+              }
+              return;
+            }
+          }
 
           faceStableCount++;
 
@@ -2612,11 +2739,14 @@ function renderView(view, section) {
    RESET FORM & AUTO LOGOUT (BUG FIXED)
    ================================================================ */
 function resetAuthForms() {
-  const inputs = ['reg-name', 'reg-username', 'reg-email', 'reg-wa', 'reg-password', 'reg-password-confirm', 'reg-birth', 'reg-company', 'reg-company-address', 'reg-position', 'login-identifier', 'login-password'];
+  const inputs = ['reg-first-name', 'reg-middle-name', 'reg-last-name', 'reg-name', 'reg-username', 'reg-email', 'reg-wa', 'reg-password', 'reg-password-confirm', 'reg-birth', 'reg-company', 'reg-company-address', 'reg-company-location-link', 'reg-position', 'login-identifier', 'login-password'];
   inputs.forEach(id => {
     const el = document.getElementById(id);
     if(el) el.value = '';
   });
+  document.getElementById('company-location-map')?.classList.add('hidden');
+  const locationStatus = document.getElementById('company-location-status');
+  if (locationStatus) locationStatus.textContent = 'Lokasi hanya diambil setelah Anda menekan tombol.';
   resetKameraUI();
 }
 
@@ -3178,7 +3308,6 @@ async function renderPublicContent(
 
   const names = [
     'Home',
-    'Profile',
     'Portfolio',
     'Career_Timeline',
     'Gallery',
@@ -3189,8 +3318,6 @@ async function renderPublicContent(
 
   const sectionToSheet = {
     home: 'Home',
-    profil: 'Profile',
-    profile: 'Profile',
     portfolio: 'Portfolio',
     career: 'Career_Timeline',
     career_timeline: 'Career_Timeline',
@@ -3212,7 +3339,6 @@ async function renderPublicContent(
   // 1. Tampilkan Animasi Loading di Seksi yang Sedang Aktif Saja
   const containerMap = {
       'Home': 'public-home-content',
-      'Profile': 'public-profile-content',
       'Portfolio': 'public-portfolio-list',
       'Career_Timeline': 'public-career-content',
       'Gallery': 'public-gallery-content',
@@ -3238,18 +3364,10 @@ async function renderPublicContent(
     } else {
       let first = await getCachedData(priority, force);
       
-      // Fallback khusus Profil: Jika sheet "Profile" kosong, coba cari sheet "Profil"
-      if (priority === 'Profile' && (!first || !first.data || first.data.length === 0)) {
-         try { first = await getCachedData('Profil', force); } catch(e) {}
-      }
-
       const data = first?.data || [];
 
       if (priority === 'Home') renderPublicHome(data);
-      else if (priority === 'Profile') {
-          if (typeof renderPublicProfile === 'function') renderPublicProfile(data);
-      }
-      else if (priority === 'Portfolio') renderPublicPortfolio(data);
+        else if (priority === 'Portfolio') renderPublicPortfolio(data);
       else if (priority === 'Career_Timeline') renderPublicCareer(data);
       else if (priority === 'Gallery') renderPublicGallery(data);
       else if (priority === 'Blog') renderPublicBlog(data);
@@ -3271,9 +3389,6 @@ async function renderPublicContent(
     const data = memoryCache[name]?.data || [];
 
     if (name === 'Home') renderPublicHome(data);
-    else if (name === 'Profile') {
-        if (typeof renderPublicProfile === 'function') renderPublicProfile(data);
-    }
     else if (name === 'Portfolio') renderPublicPortfolio(data);
     else if (name === 'Career_Timeline') renderPublicCareer(data);
     else if (name === 'Gallery') renderPublicGallery(data);
@@ -3820,6 +3935,11 @@ async function renderDynamicMenu() {
         x.Status === 'publish' ||
         x.Status === 'active'
     )
+    .filter(x => {
+      const section = String(x.Section || '').trim().toLowerCase().replace(/[\s_]+/g, '');
+      const label = String(x.Label || '').trim().toLowerCase();
+      return !['profile', 'profil'].includes(section) && !['profile', 'profil'].includes(label);
+    })
     .sort(
       (a, b) =>
         Number(
@@ -4257,7 +4377,7 @@ function closePublicPopup() {
    ================================================================ */
 function resetKameraUI() {
   isFaceVerified = false;
-  tempFaceData = { front: '', right: '', left: '', descriptor: [] };
+  tempFaceData = { front: '', right: '', left: '', descriptor: [], descriptors: {} };
   documentFaceDataUrl = '';
 
   // Kembalikan tombol UI Registrasi
@@ -5043,7 +5163,8 @@ let tempFaceData = {
   front: '',
   right: '',
   left: '',
-  descriptor: []
+  descriptor: [],
+  descriptors: {}
 };
 
 let isFaceVerified =
@@ -5324,6 +5445,7 @@ async function startFaceCamera(
 
   isFaceVerified =
     false;
+  verifiedRecoveryUserId = '';
 
   documentFaceDataUrl =
     '';
@@ -5335,7 +5457,9 @@ async function startFaceCamera(
     tempFaceData = {
       front: '',
       right: '',
-      left: ''
+      left: '',
+      descriptor: [],
+      descriptors: {}
     };
   }
 
@@ -5863,18 +5987,12 @@ async function sendRegisterOTP() {
       'reg-email'
     ).value;
 
-  const name =
-    document.getElementById(
-      'reg-name'
-    ).value;
+  const name = getRegistrationFullName();
 
-  if (
-    !email ||
-    !name
-  ) {
+  if (!isRegistrationNameComplete() || !email) {
 
     return showToast(
-      "Isi Nama & Email terlebih dahulu!",
+      "Isi nama depan, nama belakang, dan email terlebih dahulu!",
       "warning"
     );
   }
@@ -5949,6 +6067,16 @@ async function handleRegister() {
     return;
   }
 
+  if (!isRegistrationNameComplete()) {
+    return showToast('Nama depan dan nama belakang wajib diisi.', 'warning');
+  }
+
+  const fullName = getRegistrationFullName();
+  const descriptors = tempFaceData.descriptors || {};
+  if ([descriptors.front, descriptors.right, descriptors.left].some(value => !Array.isArray(value) || value.length !== 128)) {
+    return showToast('Rekam ulang wajah depan, kanan, dan kiri sampai ketiganya terverifikasi.', 'warning');
+  }
+
   const otp =
     document.getElementById(
       'reg-otp'
@@ -6006,11 +6134,14 @@ async function handleRegister() {
     const payload = {
       action: 'register',
       data: {
-        fullName: document.getElementById('reg-name').value,
+        fullName,
+        firstName: document.getElementById('reg-first-name').value.trim(),
+        middleName: document.getElementById('reg-middle-name').value.trim(),
+        lastName: document.getElementById('reg-last-name').value.trim(),
         username: document.getElementById('reg-username').value,
         birthInfo: document.getElementById('reg-birth').value,
         company: document.getElementById('reg-company').value,
-        companyAddress: document.getElementById('reg-company-address').value,
+        companyAddress: document.getElementById('reg-company-location-link').value || document.getElementById('reg-company-address').value,
         position: document.getElementById('reg-position').value,
         email: email,
         whatsapp: document.getElementById('reg-wa').value,
@@ -6021,6 +6152,7 @@ async function handleRegister() {
         faceRight: tempFaceData.right,
         faceLeft: tempFaceData.left,
         faceDescriptor: JSON.stringify(tempFaceData.descriptor || []), // Kirim 128 titik biometrik ke server
+        faceDescriptors: JSON.stringify(descriptors),
         
         deviceInfo: meta.deviceInfo,
         locationIP: meta.ip,
@@ -6076,8 +6208,9 @@ async function handleRegister() {
 async function handleLogin() {
   const identifier = document.getElementById('login-identifier')?.value || document.getElementById('login-email')?.value;
   const password = document.getElementById('login-password')?.value;
+  const normalizedIdentifier = normalizeLoginIdentifier(identifier);
 
-  if (!identifier || !password) {
+  if (!normalizedIdentifier || !password) {
     return showToast("Isi semua data login!", "warning");
   }
 
@@ -6085,12 +6218,20 @@ async function handleLogin() {
     return showToast("Verifikasi wajah wajib dilakukan untuk Login!", "warning");
   }
 
+  if (!Array.isArray(tempFaceData.descriptor) || tempFaceData.descriptor.length !== 128) {
+    return showToast('Descriptor wajah tidak valid. Tutup kamera lalu verifikasi ulang.', 'warning');
+  }
+
+  if (!tempFaceData.front) {
+    return showToast('Foto wajah login belum tersedia. Verifikasi ulang wajah Anda.', 'warning');
+  }
+
   toggleLoader(true);
   try {
     const json = await apiCall('POST', {
       action: 'login',
       data: {
-        identifier: identifier.trim(),
+        identifier: normalizedIdentifier,
         password,
         faceVerified: isFaceVerified,
         loginFacePhoto: tempFaceData.front,
@@ -6135,7 +6276,7 @@ function handleLogout() {
   currentUser = null;
   memoryCache = {};
   isFaceVerified = false;
-  tempFaceData = { front: '', right: '', left: '', descriptor: [] };
+  tempFaceData = { front: '', right: '', left: '', descriptor: [], descriptors: {} };
   
   showToast("Sesi berhasil diakhiri.", "info");
   
@@ -6156,7 +6297,7 @@ function openRecoveryPanel() {
 function closeRecoveryPanel() {
   document.getElementById('auth-recovery')?.classList.add('hidden');
   isFaceVerified = false;
-  tempFaceData = { front: '', right: '', left: '', descriptor: [] };
+  tempFaceData = { front: '', right: '', left: '', descriptor: [], descriptors: {} };
   verifiedRecoveryUserId = '';
 }
 
@@ -6202,7 +6343,7 @@ function changeRecoveryForm() {
     ) =>
       `<div>
 
-        <label class="text-xs font-bold text-slate-700 block mb-1">
+        <label class="block text-xs font-bold text-slate-700">
           ${label}
         </label>
 
@@ -6210,37 +6351,29 @@ function changeRecoveryForm() {
           id="${id}"
           type="${type}"
           placeholder="${placeholder}"
-          class="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none"
+          ${type === 'tel' ? 'inputmode="tel" autocomplete="tel"' : ''}
+          required
+          class="mt-1 w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm outline-none focus:border-blue-500"
         >
 
       </div>`;
 
-  const faceBtnHtml =
+  const otpVerificationHtml =
     `
-      <button
-        type="button"
-        onclick="startFaceCamera('recovery')"
-        id="btn-rec-face"
-        class="w-full border-2 border-dashed border-rose-300 text-rose-600 font-bold py-3.5 rounded-xl text-sm flex items-center justify-center gap-2 mt-2"
-      >
-        <i class="fas fa-camera"></i>
-        Verifikasi Wajah Wajib
-      </button>
-
-      <div
-        id="rec-face-status"
-        class="hidden text-center text-xs font-bold text-emerald-600 mt-2"
-      >
-        <i class="fas fa-check-circle"></i>
-        Wajah Terverifikasi
+      <div class="mt-4 rounded-xl border border-blue-100 bg-blue-50/70 p-4">
+        <label for="recovery-otp" class="block text-xs font-extrabold text-slate-700 mb-2">Kode verifikasi email</label>
+        <div class="flex flex-col sm:flex-row gap-2">
+          <input id="recovery-otp" type="text" inputmode="numeric" autocomplete="one-time-code" maxlength="4" placeholder="4 digit OTP" class="min-w-0 flex-1 p-3 bg-white border border-slate-200 rounded-lg text-sm text-center font-black tracking-[0.3em] outline-none focus:border-blue-500">
+          <button type="button" onclick="sendRecoveryOTP()" class="shrink-0 px-4 py-3 rounded-lg bg-slate-900 hover:bg-slate-800 text-white text-xs font-extrabold"><i class="fas fa-envelope mr-2"></i>Kirim OTP</button>
+        </div>
+        <p id="recovery-otp-status" class="mt-2 text-[11px] leading-relaxed text-slate-500" aria-live="polite">Kirim kode ke email terdaftar untuk melanjutkan.</p>
       </div>
-
       <button
         type="button"
         onclick="submitRecoveryCheck()"
-        class="w-full bg-blue-600 text-white font-bold py-3.5 rounded-xl text-sm mt-3 shadow-md"
+        class="w-full bg-blue-600 hover:bg-blue-700 text-white font-extrabold py-3.5 rounded-xl text-sm mt-3 shadow-md"
       >
-        Cek Kecocokan Data
+        Verifikasi dan Lanjutkan
       </button>
     `;
 
@@ -6259,7 +6392,7 @@ function changeRecoveryForm() {
       createInput(
         'rec-wa',
         'Nomor WhatsApp',
-        'number',
+        'tel',
         '08xxxxx'
       ) +
 
@@ -6276,9 +6409,16 @@ function changeRecoveryForm() {
 
     html +=
       createInput(
+        'rec-email',
+        'Email Terdaftar',
+        'email',
+        'nama@email.com'
+      ) +
+
+      createInput(
         'rec-wa',
         'Nomor WhatsApp Terdaftar',
-        'number',
+        'tel',
         '08xxxxx'
       ) +
 
@@ -6330,7 +6470,7 @@ function changeRecoveryForm() {
       createInput(
         'rec-wa',
         'Nomor WhatsApp',
-        'number',
+        'tel',
         '08xxxxx'
       );
 
@@ -6363,7 +6503,47 @@ function changeRecoveryForm() {
 
   container.innerHTML =
     html +
-    faceBtnHtml;
+    otpVerificationHtml;
+}
+
+function normalizeLoginIdentifier(value) {
+  const identifier = String(value || '').trim();
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(identifier)) return identifier.toLowerCase();
+  if (/^[+\d\s().-]+$/.test(identifier)) return identifier.replace(/[\s().-]/g, '');
+  return identifier.toLowerCase();
+}
+
+function getRecoveryOTPEmail() {
+  const type = document.getElementById('recovery-type')?.value;
+  const inputId = type === '2' || type === '5' ? 'rec-new-email' : 'rec-email';
+  return document.getElementById(inputId)?.value.trim() || '';
+}
+
+async function sendRecoveryOTP() {
+  const email = getRecoveryOTPEmail();
+  const status = document.getElementById('recovery-otp-status');
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    if (status) status.textContent = 'Masukkan email dengan format yang valid.';
+    return showToast('Masukkan email pemulihan terlebih dahulu.', 'warning');
+  }
+
+  const fullName = document.getElementById('rec-fullname')?.value.trim() || 'Pengguna';
+  toggleLoader(true);
+  try {
+    const result = await apiCall('POST', { action: 'sendOTP', data: { email, fullName } });
+    if (result?.status !== 'success') {
+      const message = result?.message || 'Kode verifikasi gagal dikirim.';
+      if (status) status.textContent = message;
+      return showToast(message, 'error');
+    }
+    if (status) status.textContent = result.message || 'Kode dikirim. Periksa inbox dan folder spam.';
+    showToast(result.message || 'Kode verifikasi dikirim ke email.', 'success');
+  } catch (error) {
+    if (status) status.textContent = 'Koneksi bermasalah. Periksa internet lalu coba lagi.';
+    showToast(error.message || 'Gagal mengirim kode verifikasi.', 'error');
+  } finally {
+    toggleLoader(false);
+  }
 }
 
 async function submitRecoveryCheck() {
@@ -6373,12 +6553,16 @@ async function submitRecoveryCheck() {
       'recovery-type'
     ).value;
 
-  if (!isFaceVerified) {
+  const code = document.getElementById('recovery-otp')?.value.trim() || '';
+  if (!/^\d{4}$/.test(code)) {
+    return showToast('Masukkan kode OTP 4 digit yang dikirim ke email.', 'warning');
+  }
 
-    return showToast(
-      "Verifikasi wajah wajib dilakukan untuk Lupa Akun!",
-      "warning"
-    );
+  const requiredField = [...document.querySelectorAll('#recovery-dynamic-form input[required]')]
+    .find(input => !input.value.trim());
+  if (requiredField) {
+    requiredField.focus();
+    return showToast('Lengkapi semua data pemulihan yang diminta.', 'warning');
   }
 
   const data = {
@@ -6446,9 +6630,23 @@ async function submitRecoveryCheck() {
       ).value;
   }
 
+  const newEmail = document.getElementById('rec-new-email')?.value.trim();
+  if (newEmail) data.newEmail = newEmail;
+  const otpEmail = getRecoveryOTPEmail();
+  data.email = data.email || otpEmail;
+
   toggleLoader(true);
 
   try {
+
+    const otpResult = await apiCall('POST', {
+      action: 'verifyOTP',
+      data: { email: otpEmail, code }
+    });
+    if (otpResult?.status !== 'success') {
+      showToast(otpResult?.message || 'Kode OTP salah atau sudah kedaluwarsa.', 'error');
+      return;
+    }
 
     const json =
       await apiCall(
@@ -6456,15 +6654,14 @@ async function submitRecoveryCheck() {
         {
           action:
             'validateRecovery',
-          data:
-            data
+          data: {
+            ...data,
+            verifiedEmail: otpEmail
+          }
         }
       );
 
-    if (
-      json.status ===
-      'success'
-    ) {
+    if (json?.status === 'success' && json.userId) {
 
       verifiedRecoveryUserId =
         json.userId;
@@ -6490,7 +6687,7 @@ async function submitRecoveryCheck() {
       newInputs.innerHTML =
         '';
 
-      const createInput =
+        const createInput =
         (
           id,
           label,
@@ -6505,6 +6702,7 @@ async function submitRecoveryCheck() {
             <input
               id="${id}"
               type="${type}"
+              required
               class="w-full p-3 border border-emerald-300 rounded-xl text-sm outline-none"
             >
 
@@ -6550,7 +6748,7 @@ async function submitRecoveryCheck() {
           createInput(
             'upd-wa',
             'Nomor WhatsApp Baru',
-            'number'
+            'tel'
           );
       }
 
@@ -6586,7 +6784,7 @@ async function submitRecoveryCheck() {
           createInput(
             'upd-wa',
             'WhatsApp Baru',
-            'number'
+            'tel'
           ) +
 
           createInput(
@@ -6614,7 +6812,7 @@ async function submitRecoveryCheck() {
     } else {
 
       showToast(
-        json.message,
+        json?.message || 'Data pemulihan tidak dapat diverifikasi.',
         "error"
       );
     }
@@ -6622,7 +6820,7 @@ async function submitRecoveryCheck() {
   } catch(e) {
 
     showToast(
-      "Error pengecekan data.",
+      e.message || 'Gagal memverifikasi data pemulihan.',
       "error"
     );
 
@@ -6635,7 +6833,25 @@ async function submitRecoveryCheck() {
 async function submitNewRecoveryData() {
 
   if (!verifiedRecoveryUserId) {
-    return;
+    return showToast('Verifikasi identitas belum selesai.', 'error');
+  }
+
+  const missingField = [...document.querySelectorAll('#recovery-new-inputs input[required]')]
+    .find(input => !input.value.trim());
+  if (missingField) {
+    missingField.focus();
+    return showToast('Lengkapi semua data pemulihan baru.', 'warning');
+  }
+
+  const newPassword = document.getElementById('upd-password')?.value;
+  if (newPassword && (
+    newPassword.length < 8 ||
+    !/[A-Z]/.test(newPassword) ||
+    !/[a-z]/.test(newPassword) ||
+    !/\d/.test(newPassword) ||
+    !/[\W_]/.test(newPassword)
+  )) {
+    return showToast('Password baru wajib 8 karakter dan memuat huruf besar, huruf kecil, angka, serta simbol.', 'warning');
   }
 
   const updateData = {
@@ -7169,8 +7385,6 @@ async function refreshCurrentData(isSilent = false) {
         
         const containerMap = {
             home: 'public-home-content',
-            profil: 'public-profile-content',
-            profile: 'public-profile-content',
             portfolio: 'public-portfolio-list',
             career: 'public-career-content',
             gallery: 'public-gallery-content',
@@ -7181,8 +7395,6 @@ async function refreshCurrentData(isSilent = false) {
 
         const sheetMap = { 
             home: 'Home', 
-            profil: 'Profile', 
-            profile: 'Profile', 
             portfolio: 'Portfolio', 
             career: 'Career_Timeline', 
             gallery: 'Gallery', 
@@ -7289,81 +7501,6 @@ function buildAccordionList(dataArray, type) {
    });
    return html;
   }
-
-// === TAMBAHKAN KODE INI DI PALING BAWAH SCRIPT.JS ===
-function renderPublicProfile(profileData) {
-    const container = document.getElementById('public-profile-content');
-    if (!container) return;
-
-    let profile = {};
-    if (Array.isArray(profileData)) {
-        profileData.forEach(row => {
-            if (Array.isArray(row) && row.length >= 2) {
-                profile[String(row[0]).trim().toLowerCase()] = row[1];
-            } else if (typeof row === 'object' && row !== null) {
-                if (row.key && row.value !== undefined) {
-                    profile[String(row.key).trim().toLowerCase()] = row.value;
-                } else {
-                    Object.assign(profile, row);
-                }
-            }
-        });
-    } else if (typeof profileData === 'object' && profileData !== null) {
-        profile = profileData;
-    }
-
-    const name = profile.name || profile.nama || profile.full_name || 'Nama Belum Diatur';
-    const title = profile.title || profile.jabatan || profile.role || 'Pengguna';
-    const bio = profile.bio || profile.deskripsi || profile.about || 'Belum ada deskripsi profil.';
-    const email = profile.email || '-';
-    const phone = profile.phone || profile.telepon || profile.hp || '-';
-    const address = profile.address || profile.alamat || '-';
-    const avatar = profile.avatar || profile.foto || profile.image || 'https://via.placeholder.com/150?text=Profile';
-    const avatarUrl = safeUrl(avatar) || 'https://via.placeholder.com/150?text=Profile';
-
-    container.innerHTML = `
-        <div class="bg-white rounded-3xl p-6 sm:p-10 border border-slate-100 shadow-sm transition-all duration-300">
-            <div class="flex flex-col md:flex-row items-center md:items-start gap-8">
-                <div class="relative shrink-0">
-            <img src="${escapeHtml(avatarUrl)}" alt="${escapeHtml(name)}" 
-                         class="w-32 h-32 md:w-40 md:h-40 rounded-2xl object-cover shadow-md border-4 border-slate-50"
-                         onerror="this.src='https://via.placeholder.com/150?text=User'">
-                </div>
-                <div class="flex-1 text-center md:text-left space-y-4">
-                    <div>
-              <h2 class="text-2xl md:text-3xl font-black text-slate-800 tracking-tight">${escapeHtml(name)}</h2>
-              <p class="text-blue-600 font-bold text-base md:text-lg mt-1">${escapeHtml(title)}</p>
-                    </div>
-            <p class="text-slate-600 leading-relaxed text-sm md:text-base">${escapeHtml(bio)}</p>
-                    <hr class="border-slate-100 my-4">
-                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-left pt-2">
-                        <div class="flex items-center gap-3 p-3 rounded-xl bg-slate-50">
-                            <i class="fas fa-envelope text-blue-500 text-lg"></i>
-                            <div class="overflow-hidden">
-                                <p class="text-xs text-slate-400 font-bold uppercase">Email</p>
-                                <p class="text-xs md:text-sm font-semibold text-slate-700 truncate">${escapeHtml(email)}</p>
-                            </div>
-                        </div>
-                        <div class="flex items-center gap-3 p-3 rounded-xl bg-slate-50">
-                            <i class="fas fa-phone text-emerald-500 text-lg"></i>
-                            <div class="overflow-hidden">
-                                <p class="text-xs text-slate-400 font-bold uppercase">Telepon</p>
-                                <p class="text-xs md:text-sm font-semibold text-slate-700 truncate">${escapeHtml(phone)}</p>
-                            </div>
-                        </div>
-                        <div class="flex items-center gap-3 p-3 rounded-xl bg-slate-50">
-                            <i class="fas fa-map-marker-alt text-rose-500 text-lg"></i>
-                            <div class="overflow-hidden">
-                                <p class="text-xs text-slate-400 font-bold uppercase">Alamat</p>
-                                <p class="text-xs md:text-sm font-semibold text-slate-700 truncate">${escapeHtml(address)}</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    `;
-}
 
 /* ================================================================
    ADMIN DASHBOARD UTAMA (STATISTIK LENGKAP & RESPONSIF)

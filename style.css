@@ -188,6 +188,77 @@ input[type=number] {
 
 .portal-auth-pane {
     min-width: 0;
+    width: 100%;
+}
+
+#view-login .portal-shell {
+    width: min(100%, 672px);
+    min-height: 0;
+    grid-template-columns: minmax(0, 1fr);
+}
+
+.public-portal-cta {
+    min-height: 42px;
+    background: #0f172a;
+    color: #ffffff;
+    box-shadow: 0 6px 16px rgba(15, 23, 42, .16);
+    transition: background-color .18s ease, box-shadow .18s ease, transform .18s ease;
+}
+
+.public-portal-cta:hover,
+.public-portal-cta:focus-visible {
+    background: #1d4ed8;
+    box-shadow: 0 8px 20px rgba(29, 78, 216, .24);
+}
+
+.public-portal-cta:active {
+    transform: translateY(1px);
+}
+
+.auth-submit-button {
+    width: 100%;
+    min-height: 52px;
+    padding: 14px 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    border: 0;
+    border-radius: 12px;
+    color: #ffffff;
+    font-size: .9rem;
+    font-weight: 800;
+    line-height: 1.25;
+    box-shadow: 0 8px 18px rgba(15, 23, 42, .14);
+    transition: background-color .18s ease, box-shadow .18s ease, transform .18s ease;
+}
+
+.auth-submit-primary {
+    background: #1d4ed8;
+    box-shadow: 0 8px 18px rgba(29, 78, 216, .22);
+}
+
+.auth-submit-primary:hover,
+.auth-submit-primary:focus-visible {
+    background: #1e40af;
+    box-shadow: 0 10px 22px rgba(29, 78, 216, .28);
+}
+
+.auth-submit-register {
+    background: #0f172a;
+}
+
+.auth-submit-register:hover:not(:disabled),
+.auth-submit-register:focus-visible:not(:disabled) {
+    background: #1e293b;
+}
+
+.auth-submit-button:active:not(:disabled) {
+    transform: translateY(1px);
+}
+
+.auth-submit-button:disabled {
+    box-shadow: none;
 }
 
 .animate-portal-enter {
