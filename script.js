@@ -3,6 +3,8 @@ const API_URL = "https://script.google.com/macros/s/AKfycbwN-xB6BfOK3CtqzVXXoKVH
 
 let memoryCache = {};
 let currentUser = null;
+let authSessionToken = sessionStorage.getItem('zexraps_auth_session') || '';
+let recoverySessionToken = '';
 let activeModule = 'Portfolio';
 let editingId = null;
 let editingRow = null;
@@ -70,10 +72,18 @@ async function apiCall(method = 'GET', payload = {}) {
     let targetUrl = url;
     if (method.toUpperCase() === 'POST') {
         options.headers['Content-Type'] = 'text/plain;charset=utf-8';
-        options.body = JSON.stringify(payload);
+        const requestPayload = { ...payload };
+        if (authSessionToken && !requestPayload.sessionToken) {
+            requestPayload.sessionToken = authSessionToken;
+        }
+        options.body = JSON.stringify(requestPayload);
     } else {
         const params = new URLSearchParams();
-        Object.entries(payload || {}).forEach(([k, v]) => {
+        const requestPayload = { ...payload };
+        if (authSessionToken && !requestPayload.sessionToken) {
+            requestPayload.sessionToken = authSessionToken;
+        }
+        Object.entries(requestPayload || {}).forEach(([k, v]) => {
             params.set(k, typeof v === 'object' ? JSON.stringify(v) : String(v));
         });
         // Bypass cache Apps Script 100%
@@ -6242,6 +6252,10 @@ async function handleLogin() {
 
     if (json?.status === 'success' && json.user) {
       currentUser = json.user;
+      authSessionToken = json.sessionToken || json.session || json.token || '';
+      if (authSessionToken) {
+        sessionStorage.setItem('zexraps_auth_session', authSessionToken);
+      }
       showToast("Login Berhasil! Selamat datang.", "success");
       
       if (currentUser.Role === 'SuperAdmin') {
@@ -6273,6 +6287,8 @@ async function handleLogin() {
    LOGOUT (KEMBALI KE DASHBOARD PUBLIK)
    ================================================================ */
 function handleLogout() {
+  authSessionToken = '';
+  sessionStorage.removeItem('zexraps_auth_session');
   currentUser = null;
   memoryCache = {};
   isFaceVerified = false;
@@ -6299,6 +6315,7 @@ function closeRecoveryPanel() {
   isFaceVerified = false;
   tempFaceData = { front: '', right: '', left: '', descriptor: [], descriptors: {} };
   verifiedRecoveryUserId = '';
+  recoverySessionToken = '';
 }
 
 function changeRecoveryForm() {
@@ -6665,6 +6682,7 @@ async function submitRecoveryCheck() {
 
       verifiedRecoveryUserId =
         json.userId;
+      recoverySessionToken = json.recoveryToken || json.resetToken || json.token || '';
 
       showToast(
         "Data Valid! Silakan buat data baru.",
@@ -6855,9 +6873,11 @@ async function submitNewRecoveryData() {
   }
 
   const updateData = {
-    id:
-      verifiedRecoveryUserId
+    id: verifiedRecoveryUserId,
+    userId: verifiedRecoveryUserId
   };
+
+  if (recoverySessionToken) updateData.recoveryToken = recoverySessionToken;
 
   if (
     document.getElementById(
