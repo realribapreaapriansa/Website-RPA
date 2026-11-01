@@ -2396,6 +2396,11 @@ function autoConvertDriveLink(inputEl) {
     if (match && match[1]) {
         inputEl.value = `https://drive.google.com/uc?export=view&id=${match[1]}`;
         showToast("Link Drive dikonversi ke mode publik!", "info");
+    const preview = document.getElementById(inputEl.id.replace('inp-', 'prev-'));
+    if (preview) {
+      if (preview.tagName === 'IMG') preview.src = inputEl.value;
+      preview.classList.remove('hidden');
+    }
     }
 }
 
@@ -2514,6 +2519,21 @@ function applyWebBranding(data) {
           splashBtn.className = 'mt-6 bg-blue-600 hover:bg-blue-700 text-white px-8 py-3.5 rounded-full font-bold shadow-xl shadow-blue-600/30 transition-all flex items-center justify-center gap-2 mx-auto w-full sm:w-auto';
       }
   }
+
+      const formCard = document.getElementById('guest-form-card');
+      const splash = document.getElementById('splash-screen');
+      const attendanceView = document.getElementById('view-attendance');
+      const isSplashVisible = splash && !splash.classList.contains('hidden');
+
+      if (isClosed) {
+        if (formCard) formCard.classList.add('hidden');
+        if (attendanceView && !attendanceView.classList.contains('hidden') && !isSplashVisible) {
+          skipSplash();
+        }
+      } else {
+        if (formCard && !isSplashVisible) formCard.classList.remove('hidden');
+        document.getElementById('btn-book-secret')?.remove();
+      }
 }
 
 /* ================================================================
@@ -4396,9 +4416,13 @@ function toggleAdminSidebar() {
 
 async function loadAdminModule(sheetName, force = false) {
   activeModule = sheetName;
-  
-  document.getElementById('welcome-panel').classList.add('hidden');
+
+  const welcomePanel = document.getElementById('welcome-panel');
   const tablePanel = document.getElementById('table-panel');
+  const moduleTitle = document.getElementById('admin-module-title');
+  const addButton = document.getElementById('btn-add');
+  if (welcomePanel) welcomePanel.classList.add('hidden');
+  if (!tablePanel) return;
   
   // Hapus UI Chat Admin jika sebelumnya ada
   const existingChat = document.getElementById('admin-live-chat-panel');
@@ -4433,8 +4457,41 @@ async function loadAdminModule(sheetName, force = false) {
       return;
   }
   
-  // Jika bukan Live Chat, kembalikan tampilan tabel standar
+  // Tampilkan tabel standar dan ambil data untuk modul terpilih.
   tablePanel.classList.remove('hidden');
+  if (moduleTitle) moduleTitle.textContent = sheetName.replace(/_/g, ' ');
+
+  const readOnlyModules = ['System_Logs', 'Analytics', 'Visitor_Attendance'];
+  const readOnly = readOnlyModules.includes(sheetName);
+  if (addButton) addButton.classList.toggle('hidden', readOnly);
+
+  document.querySelectorAll('.mod-btn').forEach(button => {
+    const active = button.dataset.mod === sheetName;
+    button.classList.toggle('bg-blue-600', active);
+    button.classList.toggle('text-white', active);
+    button.classList.toggle('shadow-md', active);
+    button.classList.toggle('text-slate-300', !active && button.dataset.mod !== 'admin-dash');
+  });
+
+  const searchDesktop = document.getElementById('admin-search-desktop');
+  const searchMobile = document.getElementById('admin-search-mobile');
+  if (searchDesktop) searchDesktop.value = '';
+  if (searchMobile) searchMobile.value = '';
+
+  const tbody = document.getElementById('admin-tbody');
+  if (tbody) {
+    tbody.innerHTML = '<tr><td colspan="10" class="text-center py-16 animate-pulse"><i class="fas fa-circle-notch fa-spin text-4xl text-blue-600 mb-3"></i><br><span class="font-bold text-slate-500">Memuat data...</span></td></tr>';
+  }
+
+  try {
+    const result = await getCachedData(sheetName, force);
+    renderAdminTable(result.headers || [], result.data || []);
+  } catch (error) {
+    if (tbody) {
+      tbody.innerHTML = '<tr><td colspan="10" class="text-center py-12 text-rose-600 font-bold">Gagal memuat data modul. Periksa koneksi lalu refresh.</td></tr>';
+    }
+    showToast(error.message || 'Gagal memuat data modul.', 'error');
+  }
 }
 
 /* ================================================================
@@ -7160,42 +7217,43 @@ function renderPublicProfile(profileData) {
     const phone = profile.phone || profile.telepon || profile.hp || '-';
     const address = profile.address || profile.alamat || '-';
     const avatar = profile.avatar || profile.foto || profile.image || 'https://via.placeholder.com/150?text=Profile';
+    const avatarUrl = safeUrl(avatar) || 'https://via.placeholder.com/150?text=Profile';
 
     container.innerHTML = `
         <div class="bg-white rounded-3xl p-6 sm:p-10 border border-slate-100 shadow-sm transition-all duration-300">
             <div class="flex flex-col md:flex-row items-center md:items-start gap-8">
                 <div class="relative shrink-0">
-                    <img src="${avatar}" alt="${name}" 
+            <img src="${escapeHtml(avatarUrl)}" alt="${escapeHtml(name)}" 
                          class="w-32 h-32 md:w-40 md:h-40 rounded-2xl object-cover shadow-md border-4 border-slate-50"
                          onerror="this.src='https://via.placeholder.com/150?text=User'">
                 </div>
                 <div class="flex-1 text-center md:text-left space-y-4">
                     <div>
-                        <h2 class="text-2xl md:text-3xl font-black text-slate-800 tracking-tight">${name}</h2>
-                        <p class="text-blue-600 font-bold text-base md:text-lg mt-1">${title}</p>
+              <h2 class="text-2xl md:text-3xl font-black text-slate-800 tracking-tight">${escapeHtml(name)}</h2>
+              <p class="text-blue-600 font-bold text-base md:text-lg mt-1">${escapeHtml(title)}</p>
                     </div>
-                    <p class="text-slate-600 leading-relaxed text-sm md:text-base">${bio}</p>
+            <p class="text-slate-600 leading-relaxed text-sm md:text-base">${escapeHtml(bio)}</p>
                     <hr class="border-slate-100 my-4">
                     <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 text-left pt-2">
                         <div class="flex items-center gap-3 p-3 rounded-xl bg-slate-50">
                             <i class="fas fa-envelope text-blue-500 text-lg"></i>
                             <div class="overflow-hidden">
                                 <p class="text-xs text-slate-400 font-bold uppercase">Email</p>
-                                <p class="text-xs md:text-sm font-semibold text-slate-700 truncate">${email}</p>
+                                <p class="text-xs md:text-sm font-semibold text-slate-700 truncate">${escapeHtml(email)}</p>
                             </div>
                         </div>
                         <div class="flex items-center gap-3 p-3 rounded-xl bg-slate-50">
                             <i class="fas fa-phone text-emerald-500 text-lg"></i>
                             <div class="overflow-hidden">
                                 <p class="text-xs text-slate-400 font-bold uppercase">Telepon</p>
-                                <p class="text-xs md:text-sm font-semibold text-slate-700 truncate">${phone}</p>
+                                <p class="text-xs md:text-sm font-semibold text-slate-700 truncate">${escapeHtml(phone)}</p>
                             </div>
                         </div>
                         <div class="flex items-center gap-3 p-3 rounded-xl bg-slate-50">
                             <i class="fas fa-map-marker-alt text-rose-500 text-lg"></i>
                             <div class="overflow-hidden">
                                 <p class="text-xs text-slate-400 font-bold uppercase">Alamat</p>
-                                <p class="text-xs md:text-sm font-semibold text-slate-700 truncate">${address}</p>
+                                <p class="text-xs md:text-sm font-semibold text-slate-700 truncate">${escapeHtml(address)}</p>
                             </div>
                         </div>
                     </div>
