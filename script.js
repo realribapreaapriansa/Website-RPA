@@ -480,6 +480,8 @@ async function captureFace() {
     }
   } catch (e) {
     console.error('Descriptor error:', e);
+    showToast('Pemindaian wajah gagal. Periksa pencahayaan dan coba lagi.', 'error');
+    return false;
   }
   /* --------------------------------- */
 
@@ -4267,6 +4269,8 @@ function resetKameraUI() {
   // Kembalikan tombol UI Recovery
   document.getElementById('rec-face-status')?.classList.add('hidden');
   document.getElementById('btn-rec-face')?.classList.remove('hidden');
+
+  if (typeof checkPasswordMatch === 'function') checkPasswordMatch();
 }
 
 /* ================================================================
@@ -5976,23 +5980,20 @@ async function handleLogin() {
   }
 
   toggleLoader(true);
-  const meta = await getDeviceAndLocation();
-
-  const payload = {
-    action: 'login',
-    data: {
-      identifier: identifier.trim(),
-      password: password,
-      faceVerified: isFaceVerified,
-      loginFacePhoto: tempFaceData.front,
-      loginFaceDescriptor: JSON.stringify(tempFaceData.descriptor || []),
-      deviceInfo: meta.deviceInfo
-    }
-  };
-
   try {
-    const json = await apiCall('POST', payload);
-    if (json.status === 'success') {
+    const json = await apiCall('POST', {
+      action: 'login',
+      data: {
+        identifier: identifier.trim(),
+        password,
+        faceVerified: isFaceVerified,
+        loginFacePhoto: tempFaceData.front,
+        loginFaceDescriptor: JSON.stringify(tempFaceData.descriptor || []),
+        deviceInfo: navigator.userAgent
+      }
+    });
+
+    if (json?.status === 'success' && json.user) {
       currentUser = json.user;
       showToast("Login Berhasil! Selamat datang.", "success");
       
@@ -6008,11 +6009,14 @@ async function handleLogin() {
       } else {
         switchView('visitor');
       }
+    } else if (json?.status === 'success') {
+      showToast('Server tidak mengirimkan data akun. Silakan coba lagi.', 'error');
     } else {
-      showToast(json.message, "error");
+      showToast(json?.message || 'Login gagal. Periksa data akun dan coba lagi.', "error");
     }
-  } catch(e) {
-    showToast("Gagal Terhubung ke Server", "error");
+  } catch (error) {
+    console.error('Login error:', error);
+    showToast(error.message || 'Gagal terhubung ke server. Periksa koneksi Anda.', "error");
   } finally {
     toggleLoader(false);
   }
@@ -6037,25 +6041,17 @@ function handleLogout() {
    RECOVERY
    ================================================================ */
 function openRecoveryPanel() {
-
-  document
-    .getElementById(
-      'auth-recovery'
-    )
-    ?.classList.remove(
-      'hidden'
-    );
+  const panel = document.getElementById('auth-recovery');
+  if (!panel) return;
+  panel.classList.remove('hidden');
+  changeRecoveryForm();
 }
 
 function closeRecoveryPanel() {
-
-  document
-    .getElementById(
-      'auth-recovery'
-    )
-    ?.classList.add(
-      'hidden'
-    );
+  document.getElementById('auth-recovery')?.classList.add('hidden');
+  isFaceVerified = false;
+  tempFaceData = { front: '', right: '', left: '', descriptor: [] };
+  verifiedRecoveryUserId = '';
 }
 
 function changeRecoveryForm() {
@@ -6460,7 +6456,7 @@ async function submitRecoveryCheck() {
           createInput(
             'upd-password',
             'Buat Password Baru',
-            'text'
+            'password'
           );
       }
 
@@ -6490,7 +6486,7 @@ async function submitRecoveryCheck() {
           createInput(
             'upd-password',
             'Password Baru',
-            'text'
+            'password'
           );
 
         document.getElementById(

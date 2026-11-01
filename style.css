@@ -166,3 +166,77 @@ input[type=number] {
 #recovery-dynamic-form, #recovery-new-data-form {
     transition: all 0.3s ease-in-out;
 }
+
+.portal-backdrop {
+    background: linear-gradient(135deg, #0f172a 0%, #123047 52%, #0f4c5c 100%);
+}
+
+.portal-shell {
+    isolation: isolate;
+}
+
+.portal-intro {
+    background: linear-gradient(155deg, #164e63 0%, #0f766e 56%, #14532d 100%);
+}
+
+.portal-intro-pattern {
+    opacity: 0.13;
+    background-image: linear-gradient(135deg, transparent 0 48%, rgba(255,255,255,.55) 49%, transparent 50%), linear-gradient(45deg, transparent 0 48%, rgba(255,255,255,.35) 49%, transparent 50%);
+    background-size: 34px 34px, 52px 52px;
+    mask-image: linear-gradient(135deg, #000 0%, transparent 75%);
+}
+
+.portal-auth-pane {
+    min-width: 0;
+}
+
+.animate-portal-enter {
+    animation: portalEnter 0.42s cubic-bezier(0.2, 0.75, 0.25, 1) both;
+}
+
+@keyframes portalEnter {
+    from { opacity: 0; transform: translateY(14px) scale(0.985); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.face-guide {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: min(52%, 220px);
+    aspect-ratio: 0.78;
+    transform: translate(-50%, -50%);
+    border: 2px solid rgba(255,255,255,.72);
+    border-radius: 48% 48% 44% 44%;
+    box-shadow: 0 0 0 999px rgba(2, 6, 23, .16), inset 0 0 24px rgba(255,255,255,.08);
+    pointer-events: none;
+}
+
+@media (max-width: 639px) {
+    #view-login {
+        padding: 10px;
+    }
+
+    .portal-shell {
+        min-height: calc(100dvh - 20px);
+        border-radius: 18px;
+    }
+
+    .portal-auth-pane {
+        padding: 20px 16px 24px;
+    }
+
+    #auth-register-panel .grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    #auth-register-panel .md\:col-span-2 {
+        grid-column: span 1 / span 1;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .animate-portal-enter {
+        animation: none;
+    }
+}
