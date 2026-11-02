@@ -3,6 +3,14 @@ const API_URL = "https://script.google.com/macros/s/AKfycbwN-xB6BfOK3CtqzVXXoKVH
 
 let memoryCache = {};
 let currentUser = null;
+const GUEST_SESSION_KEY = 'zexraps_guest_session';
+let currentGuest = (() => {
+    try {
+        return JSON.parse(sessionStorage.getItem(GUEST_SESSION_KEY) || 'null');
+    } catch (error) {
+        return null;
+    }
+})();
 let authSessionToken = sessionStorage.getItem('zexraps_auth_session') || '';
 let recoverySessionToken = '';
 let activeModule = 'Portfolio';
@@ -43,6 +51,7 @@ const menuGroups = [
   ]},
   { title: "Interaksi Visitor", icon: 'fa-users', items: [
     {sheet:'Visitor_Attendance',label:'Visitor Attendance'}, 
+    {sheet:'Visitor_Consents',label:'Persetujuan Legal'},
     {sheet:'Live_Chat',label:'Live Chat Inbox'}, 
     {sheet:'Newsletter',label:'Inbox Newsletter'}, 
     {sheet:'Notifications',label:'Notifications'}, 
@@ -1308,6 +1317,24 @@ function startOTPCountdown(
 /* ================================================================
    SUBMIT ABSENSI
    ================================================================ */
+function setGuestSession(fullName, email, attendanceResult = {}) {
+  const attendanceData = attendanceResult?.data && !Array.isArray(attendanceResult.data)
+    ? attendanceResult.data
+    : {};
+  currentGuest = {
+    UserID: String(attendanceData.UserID || attendanceData.id || attendanceResult.UserID || attendanceResult.id || email).trim(),
+    FullName: String(fullName || '').trim(),
+    Email: String(email || '').trim(),
+    Role: 'Visitor'
+  };
+
+  try {
+    sessionStorage.setItem(GUEST_SESSION_KEY, JSON.stringify(currentGuest));
+  } catch (error) {
+    console.warn('Sesi tamu tidak dapat disimpan di browser.', error);
+  }
+}
+
 async function submitAttendance() {
 
   const name =
@@ -1484,6 +1511,8 @@ async function submitAttendance() {
         'hidden'
       );
 
+    setGuestSession(name, email, attendance);
+
     navigateTo(
       'public',
       'home',
@@ -1526,6 +1555,8 @@ async function submitAttendance() {
    VISITOR DASHBOARD TABS
    ================================================================ */
 async function switchVisitorTab(tab, isSilent = false) {
+
+  closeVisitorSidebar();
 
   document.querySelectorAll(
     '.v-btn'
@@ -2330,6 +2361,13 @@ async function saveVisitorProfile() {
   }
 }
 
+function closeVisitorSidebar() {
+  const sidebar = document.getElementById('vis-sidebar');
+  if (sidebar && window.matchMedia('(max-width: 767px)').matches) {
+    sidebar.classList.add('hidden');
+  }
+}
+
 /* ================================================================
    ADMIN MODAL INPUT (UI MODERN DENGAN DETEKSI MULTIMEDIA CERDAS)
    ================================================================ */
@@ -2543,15 +2581,29 @@ function autoConvertDriveLink(inputEl) {
     }
 }
 
-// Tambahan: Pastikan fungsi toggle sidebar ada jika belum (untuk Hamburger Menu)
-window.toggleAdminSidebar = function() {
-    const sb = document.getElementById('adm-sidebar');
-    const overlay = document.getElementById('adm-sidebar-overlay');
-    if (sb && overlay) {
-        sb.classList.toggle('-translate-x-full');
-        overlay.classList.toggle('hidden');
-    }
-};
+function setAdminSidebarOpen(open) {
+  const sidebar = document.getElementById('adm-sidebar');
+  const overlay = document.getElementById('adm-sidebar-overlay');
+  if (!sidebar || !overlay) return;
+
+  sidebar.classList.toggle('-translate-x-full', !open);
+  sidebar.classList.toggle('mobile-open', open);
+  overlay.classList.toggle('hidden', !open);
+  document.body.style.overflow = open && window.matchMedia('(max-width: 767px)').matches
+    ? 'hidden'
+    : '';
+}
+
+function closeAdminSidebar() {
+  setAdminSidebarOpen(false);
+}
+
+function toggleAdminSidebar(forceOpen) {
+  const sidebar = document.getElementById('adm-sidebar');
+  if (!sidebar) return;
+  const isOpen = !sidebar.classList.contains('-translate-x-full');
+  setAdminSidebarOpen(typeof forceOpen === 'boolean' ? forceOpen : !isOpen);
+}
 
 function closeModalForm() {
 
@@ -2798,9 +2850,14 @@ function switchView(
 function switchPublicSection(
   sec
 ) {
+  const requestedSection = String(sec || 'home').toLowerCase();
+  const publicSection = requestedSection === 'contact' ? 'chat' : requestedSection;
+  const mobileMenu = document.getElementById('mobile-menu');
+  if (mobileMenu) mobileMenu.classList.add('hidden');
+
   navigateTo(
     'public',
-    sec,
+    publicSection,
     true
   );
 }
@@ -2961,179 +3018,79 @@ function clearCountdown() {
   }
 }
 
-function buildCheckboxSection(
-  type
-) {
+function buildCheckboxSection(type) {
+  const label = type === 'privacy' ? 'Kebijakan Privasi' : 'Syarat dan Ketentuan';
+  const id = type === 'privacy' ? 'cbPrivacy' : 'cbTerms';
 
-  const label =
-    type === 'privacy'
-      ? 'Kebijakan Privasi'
-      : 'Syarat dan Ketentuan';
-
-  const id =
-    type === 'privacy'
-      ? 'cbPrivacy'
-      : 'cbTerms';
-
-  return (
-    '<div class="checkbox-section">' +
-
-      '<div class="checkbox-title">' +
-        '<i class="fas fa-triangle-exclamation"></i> ' +
-        'Pernyataan Persetujuan' +
-      '</div>' +
-
-      '<label class="checkbox-label" for="' +
-        id +
-        '">' +
-
-        '<input type="checkbox" id="' +
-          id +
-          '" onchange="handleCheckbox(\'' +
-          type +
-          '\', this.checked)">' +
-
-        '<span class="custom-check">' +
-          '<i class="fas fa-check"></i>' +
-        '</span>' +
-
-        '<span class="checkbox-text">' +
-
-          'Dengan mencentang kotak ini, saya menyatakan bahwa saya telah ' +
-          '<strong>membaca seluruh isi ' +
-          label +
-          ' ini sampai selesai</strong> ' +
-          'dan ' +
-          '<strong>menyetujui secara sadar serta tanpa paksaan</strong>.' +
-
-        '</span>' +
-
-      '</label>' +
-
-      '<div class="countdown-bar" id="countdown-' +
-        type +
-        '">' +
-
-        '<div class="countdown-track">' +
-          '<div class="countdown-fill" id="countdown-fill-' +
-            type +
-            '"></div>' +
-        '</div>' +
-
-        '<div class="countdown-text" id="countdown-text-' +
-          type +
-          '">' +
-          'Modal akan tertutup dalam 5 detik...' +
-        '</div>' +
-
-      '</div>' +
-
-    '</div>'
-  );
+  return `
+    <div class="checkbox-section">
+      <div class="checkbox-title"><i class="fas fa-triangle-exclamation"></i> Pernyataan Persetujuan</div>
+      <label class="checkbox-label" for="${id}">
+        <input type="checkbox" id="${id}" onchange="handleCheckbox('${type}', this.checked)">
+        <span class="custom-check"><i class="fas fa-check"></i></span>
+        <span class="checkbox-text">Saya telah membaca <strong>${label}</strong> dan menyetujuinya secara sadar serta tanpa paksaan. Persetujuan ini akan dicatat bersama data buku tamu saya.</span>
+      </label>
+      <p id="consent-save-status" class="mt-3 text-xs font-semibold text-amber-800" aria-live="polite">Centang untuk merekam persetujuan Anda.</p>
+    </div>`;
 }
 
-function handleCheckbox(
-  type,
-  checked
-) {
-
-  if (!checked) {
-
-    clearCountdown();
-
-    const bar =
-      document.getElementById(
-        'countdown-' + type
-      );
-
-    if (bar) {
-      bar.classList.remove(
-        'show'
-      );
+async function saveLegalConsent(type, identity) {
+  const consentLabel = type === 'privacy' ? 'Kebijakan Privasi' : 'Syarat dan Ketentuan';
+  const result = await apiCall('POST', {
+    action: 'insert',
+    sheet: 'Visitor_Consents',
+    user: identity.UserID || identity.Email,
+    data: {
+      Visitor_ID: identity.UserID || identity.Email,
+      Attendance_ID: identity.UserID || identity.Email,
+      Visitor_Name: identity.FullName,
+      Visitor_Email: identity.Email,
+      Consent_Type: consentLabel,
+      Consent_Status: 'Setuju',
+      Accepted_At: new Date().toISOString(),
+      Policy_Version: 'current'
     }
+  });
 
+  if (!result || result.status !== 'success') {
+    throw new Error(result?.message || 'Persetujuan gagal disimpan.');
+  }
+
+  invalidateCache('Visitor_Consents');
+  return result;
+}
+
+async function handleCheckbox(type, checked) {
+  const checkboxId = type === 'privacy' ? 'cbPrivacy' : 'cbTerms';
+  const checkbox = document.getElementById(checkboxId);
+  const status = document.getElementById('consent-save-status');
+  if (!checked) {
+    if (status) status.textContent = 'Centang untuk merekam persetujuan Anda.';
     return;
   }
 
-  const bar =
-    document.getElementById(
-      'countdown-' + type
-    );
-
-  if (bar) {
-    bar.classList.add(
-      'show'
-    );
+  const identity = getChatIdentity();
+  if (!identity) {
+    if (checkbox) checkbox.checked = false;
+    showToast('Isi buku tamu terlebih dahulu sebelum memberikan persetujuan.', 'warning');
+    return;
   }
 
-  let detik = 5;
+  if (checkbox) checkbox.disabled = true;
+  if (status) status.textContent = 'Menyimpan persetujuan...';
 
-  const fill =
-    document.getElementById(
-      'countdown-fill-' + type
-    );
-
-  const text =
-    document.getElementById(
-      'countdown-text-' + type
-    );
-
-  if (fill) {
-    fill.style.width =
-      '0%';
+  try {
+    await saveLegalConsent(type, identity);
+    closeModal();
+    showToast('Persetujuan berhasil direkam.', 'success');
+  } catch (error) {
+    if (checkbox) {
+      checkbox.checked = false;
+      checkbox.disabled = false;
+    }
+    if (status) status.textContent = 'Persetujuan belum tersimpan. Silakan coba lagi.';
+    showToast(error.message || 'Persetujuan gagal disimpan.', 'error');
   }
-
-  if (text) {
-    text.textContent =
-      'Modal akan tertutup dalam ' +
-      detik +
-      ' detik...';
-  }
-
-  clearCountdown();
-
-  countdownTimer =
-    setInterval(
-      function() {
-
-        detik--;
-
-        const progress =
-          (
-            (5 - detik) / 5
-          ) * 100;
-
-        if (fill) {
-          fill.style.width =
-            progress +
-            '%';
-        }
-
-        if (text) {
-
-          text.textContent =
-            detik > 0
-              ? 'Modal akan tertutup dalam ' +
-                detik +
-                ' detik...'
-              : 'Menutup...';
-        }
-
-        if (detik <= 0) {
-
-          clearCountdown();
-
-          closeModal();
-
-          showToast(
-            'Persetujuan berhasil dicatat',
-            'success'
-          );
-        }
-
-      },
-      1000
-    );
 }
 
 function getFormattedDate() {
@@ -3334,7 +3291,8 @@ async function renderPublicContent(
     gallery: 'Gallery',
     blog: 'Blog',
     documents: 'Documents',
-    contact: 'Contact'
+    contact: 'Contact',
+    chat: 'Contact'
   };
 
   const priority =
@@ -3354,7 +3312,7 @@ async function renderPublicContent(
       'Gallery': 'public-gallery-content',
       'Blog': 'public-blog-content',
       'Documents': 'public-documents-content',
-      'Contact': 'public-contact-content'
+      'Contact': 'public-chat-content'
   };
   
   const targetContainer = document.getElementById(containerMap[priority]);
@@ -3912,11 +3870,11 @@ function renderPublicDocuments(r) {
    MENU CONTACT PUBLIK (MENJADI APLIKASI LIVE CHAT)
    ================================================================ */
 function renderPublicContact(r) {
-    const e = document.getElementById('public-contact-content');
+    const e = document.getElementById('public-chat-content') || document.getElementById('public-contact-content');
     if (!e) return;
-    
-    if (!currentUser) {
-        e.innerHTML = `<div class="bg-white p-10 md:p-16 rounded-3xl border text-center shadow-sm max-w-3xl mx-auto animate-fade-in my-8"><i class="fab fa-whatsapp text-6xl text-emerald-500 mb-5"></i><h2 class="text-2xl md:text-3xl font-black mb-3 text-slate-800">Live Chat Tersedia</h2><p class="text-slate-500 mb-8 max-w-md mx-auto">Silakan masuk (Login) sebagai Visitor untuk mulai mengirim pesan ke Global atau Admin.</p><button onclick="navigateTo('attendance')" class="bg-emerald-500 hover:bg-emerald-600 text-white px-8 py-3.5 rounded-full font-bold shadow-xl shadow-emerald-500/30 transition-transform hover:-translate-y-1">Login / Isi Buku Tamu</button></div>`;
+
+    if (!getChatIdentity()) {
+        e.innerHTML = `<div class="bg-white p-10 md:p-16 rounded-3xl border text-center shadow-sm max-w-3xl mx-auto animate-fade-in my-8"><i class="fas fa-comments text-6xl text-emerald-500 mb-5"></i><h2 class="text-2xl md:text-3xl font-black mb-3 text-slate-800">Live Chat Tersedia</h2><p class="text-slate-500 mb-8 max-w-md mx-auto">Isi buku tamu terlebih dahulu untuk mulai menggunakan chat publik.</p><button onclick="navigateTo('attendance')" class="bg-emerald-500 hover:bg-emerald-600 text-white px-8 py-3.5 rounded-full font-bold shadow-xl shadow-emerald-500/30 transition-transform hover:-translate-y-1">Isi Buku Tamu</button></div>`;
         return;
     }
     
@@ -3994,7 +3952,9 @@ async function renderDynamicMenu() {
             const key =
               section === 'profile'
                 ? 'profil'
-                : section;
+                : section === 'contact'
+                  ? 'chat'
+                  : section;
 
             const label =
               key === 'contact'
@@ -4521,37 +4481,12 @@ function initAdminSidebar() {
   );
 }
 
-function toggleAdminSidebar() {
-
-  const sb =
-    document.getElementById(
-      'adm-sidebar'
-    );
-
-  if (!sb) return;
-
-  const open =
-    sb.classList.contains(
-      'hidden'
-    );
-
-  sb.classList.toggle(
-    'hidden'
-  );
-
-  sb.classList.toggle(
-    'mobile-open',
-    open
-  );
-
-  document.body.style.overflow =
-    open
-      ? 'hidden'
-      : '';
-}
-
 async function loadAdminModule(sheetName, force = false) {
   activeModule = sheetName;
+
+  if (!force && window.matchMedia('(max-width: 767px)').matches) {
+    closeAdminSidebar();
+  }
 
   const welcomePanel = document.getElementById('welcome-panel');
   const tablePanel = document.getElementById('table-panel');
@@ -4609,7 +4544,7 @@ async function loadAdminModule(sheetName, force = false) {
           b.classList.toggle('text-slate-300', !a);
       });
       
-      if (innerWidth < 768 && typeof toggleAdminSidebar === 'function') toggleAdminSidebar();
+      if (innerWidth < 768) closeAdminSidebar();
       
       activeChatRoom = 'Global';
       if (typeof renderAdminChatRooms === 'function') await renderAdminChatRooms();
@@ -4623,7 +4558,7 @@ async function loadAdminModule(sheetName, force = false) {
   tablePanel.classList.remove('hidden');
   if (moduleTitle) moduleTitle.textContent = sheetName.replace(/_/g, ' ');
 
-  const readOnlyModules = ['System_Logs', 'Analytics', 'Visitor_Attendance'];
+  const readOnlyModules = ['System_Logs', 'Analytics', 'Visitor_Attendance', 'Visitor_Consents'];
   const readOnly = readOnlyModules.includes(sheetName);
   if (addButton) addButton.classList.toggle('hidden', readOnly);
 
@@ -4799,7 +4734,8 @@ function renderAdminTable(
   const ro = [
     'System_Logs',
     'Analytics',
-    'Visitor_Attendance'
+    'Visitor_Attendance',
+    'Visitor_Consents'
   ].includes(
     activeModule
   );
@@ -7410,7 +7346,8 @@ async function refreshCurrentData(isSilent = false) {
             gallery: 'public-gallery-content',
             blog: 'public-blog-content',
             documents: 'public-documents-content',
-            contact: 'public-contact-content'
+            contact: 'public-chat-content',
+            chat: 'public-chat-content'
         };
 
         const sheetMap = { 
@@ -7420,7 +7357,8 @@ async function refreshCurrentData(isSilent = false) {
             gallery: 'Gallery', 
             blog: 'Blog', 
             documents: 'Documents', 
-            contact: 'Contact' 
+            contact: 'Contact',
+            chat: 'Contact'
         };
 
         const targetId = containerMap[sec] || 'public-home-content';
@@ -7434,6 +7372,8 @@ async function refreshCurrentData(isSilent = false) {
             invalidateCache('Home');
             invalidateCache('Visitor_Attendance');
             invalidateCache('Users');
+        } else if (sec === 'chat' || sec === 'contact') {
+            invalidateCache('Contact');
         } else {
             invalidateCache(sheetMap[sec] || 'Home');
         }
@@ -7527,6 +7467,7 @@ function buildAccordionList(dataArray, type) {
    ================================================================ */
 async function renderAdminDashboardStats() {
   activeModule = 'admin-dash';
+  if (window.matchMedia('(max-width: 767px)').matches) closeAdminSidebar();
   
   // Atur visibilitas panel agar rapi
   const tablePanel = document.getElementById('table-panel');
@@ -7554,15 +7495,17 @@ async function renderAdminDashboardStats() {
 
   try {
       // Tarik 3 Data Utama untuk Statistik
-      const [att, users, logs] = await Promise.all([
+      const [att, users, logs, consentRecords] = await Promise.all([
           getCachedData('Visitor_Attendance'),
           getCachedData('Users'),
-          getCachedData('System_Logs')
+          getCachedData('System_Logs'),
+          getCachedData('Visitor_Consents').catch(() => ({ data: [] }))
       ]);
 
       const totalVisitor = att.data ? att.data.length : 0;
       const totalUsers = users.data ? users.data.length : 0;
       const totalLogs = logs.data ? logs.data.length : 0;
+      const totalConsents = consentRecords.data ? consentRecords.data.length : 0;
 
       // Desain UI Dashboard yang Bersih, Responsif Mobile/Desktop & Efisien
       welcomePanel.innerHTML = `
@@ -7581,7 +7524,7 @@ async function renderAdminDashboardStats() {
               </div>
 
               <!-- Grid Statistik -->
-              <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
+              <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
                   <div class="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm flex items-center gap-5 hover:shadow-md transition-shadow">
                       <div class="w-16 h-16 rounded-2xl bg-emerald-50 text-emerald-500 flex items-center justify-center text-2xl shrink-0"><i class="fas fa-eye"></i></div>
                       <div>
@@ -7603,6 +7546,13 @@ async function renderAdminDashboardStats() {
                           <h4 class="text-3xl font-black text-slate-800 mt-1">${totalLogs}</h4>
                       </div>
                   </div>
+                  <button type="button" onclick="loadAdminModule('Visitor_Consents')" class="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm flex items-center gap-5 hover:shadow-md hover:border-amber-200 transition-all text-left">
+                      <div class="w-16 h-16 rounded-2xl bg-amber-50 text-amber-500 flex items-center justify-center text-2xl shrink-0"><i class="fas fa-file-signature"></i></div>
+                      <div>
+                          <p class="text-xs font-bold text-slate-400 uppercase tracking-wider">Persetujuan Legal</p>
+                          <h4 class="text-3xl font-black text-slate-800 mt-1">${totalConsents}</h4>
+                      </div>
+                  </button>
               </div>
 
               <!-- Jalan Pintas (Shortcut Fitur Esensial) -->
@@ -7711,11 +7661,11 @@ async function renderDynamicFooter() {
    PENGGANTIAN KONTAK PUBLIK MENJADI CHAT
    ================================================================ */
 function renderPublicContact(r) {
-    const e = document.getElementById('public-contact-content');
+    const e = document.getElementById('public-chat-content') || document.getElementById('public-contact-content');
     if (!e) return;
-    
-    if (!currentUser) {
-        e.innerHTML = `<div class="bg-white p-10 md:p-16 rounded-3xl border text-center shadow-sm max-w-3xl mx-auto animate-fade-in"><i class="fab fa-whatsapp text-6xl text-emerald-500 mb-5"></i><h2 class="text-2xl md:text-3xl font-black mb-3 text-slate-800">Live Chat Tersedia</h2><p class="text-slate-500 mb-8 max-w-md mx-auto">Silakan masuk (Login) sebagai Visitor untuk mulai mengirim pesan ke Global atau Admin.</p><button onclick="navigateTo('attendance')" class="bg-emerald-500 hover:bg-emerald-600 text-white px-8 py-3.5 rounded-full font-bold shadow-xl shadow-emerald-500/30 transition-transform hover:-translate-y-1">Login / Isi Buku Tamu</button></div>`;
+
+    if (!getChatIdentity()) {
+        e.innerHTML = `<div class="bg-white p-10 md:p-16 rounded-3xl border text-center shadow-sm max-w-3xl mx-auto animate-fade-in"><i class="fas fa-comments text-6xl text-emerald-500 mb-5"></i><h2 class="text-2xl md:text-3xl font-black mb-3 text-slate-800">Live Chat Tersedia</h2><p class="text-slate-500 mb-8 max-w-md mx-auto">Isi buku tamu terlebih dahulu untuk mulai menggunakan chat publik.</p><button onclick="navigateTo('attendance')" class="bg-emerald-500 hover:bg-emerald-600 text-white px-8 py-3.5 rounded-full font-bold shadow-xl shadow-emerald-500/30 transition-transform hover:-translate-y-1">Isi Buku Tamu</button></div>`;
         return;
     }
     
@@ -7744,6 +7694,12 @@ function renderPublicContact(r) {
    ================================================================ */
 let activeChatRoom = 'Global';
 let chatSyncTimer = null;
+
+function getChatIdentity() {
+    if (currentUser) return currentUser;
+    if (currentGuest?.FullName && currentGuest?.Email) return currentGuest;
+    return null;
+}
 
 function buildChatUI(roleContext) {
     const adminRooms = roleContext === 'admin' ? '<div id="admin-visitor-rooms" class="flex flex-col"></div>' : '';
@@ -7835,6 +7791,9 @@ async function renderAdminChatRooms() {
 }
 
 async function syncChatMessages() {
+    const identity = getChatIdentity();
+    if (!identity) return;
+
     try {
         const res = await getCachedData('Live_Chat', true);
         const allChats = res.data || [];
@@ -7843,10 +7802,10 @@ async function syncChatMessages() {
         if (activeChatRoom === 'Global') {
             filteredChats = allChats.filter(c => c.Room === 'Global');
         } else if (activeChatRoom === 'Admin') {
-            if (currentUser.Role === 'SuperAdmin') filteredChats = allChats.filter(c => c.Room === 'Admin');
-            else filteredChats = allChats.filter(c => c.Room === 'Admin' && (c.Sender_Name === currentUser.FullName || c.Sender_Name === 'Admin Support'));
+            if (identity.Role === 'SuperAdmin') filteredChats = allChats.filter(c => c.Room === 'Admin');
+            else filteredChats = allChats.filter(c => c.Room === 'Admin' && (c.Sender_Name === identity.FullName || c.Sender_ID === identity.UserID || c.Sender_Email === identity.Email || c.Sender_Name === 'Admin Support'));
         } else {
-            filteredChats = allChats.filter(c => c.Room === activeChatRoom || (c.Sender_Name === activeChatRoom && c.Room === 'Admin'));
+            filteredChats = allChats.filter(c => c.Room === activeChatRoom || ((c.Sender_Name === activeChatRoom || c.Sender_ID === activeChatRoom || c.Sender_Email === activeChatRoom) && c.Room === 'Admin'));
         }
         renderChatBubbles(filteredChats);
     } catch (e) {}
@@ -7854,7 +7813,8 @@ async function syncChatMessages() {
 
 function renderChatBubbles(chats) {
     const container = document.getElementById('chat-messages-container');
-    if (!container) return;
+    const identity = getChatIdentity();
+    if (!container || !identity) return;
     if (chats.length === 0) {
         container.innerHTML = '<div class="text-center text-slate-400 text-xs my-auto"><i class="fas fa-comments text-4xl mb-3 opacity-50"></i><br>Belum ada obrolan. Mulai sapa!</div>';
         return;
@@ -7863,8 +7823,8 @@ function renderChatBubbles(chats) {
 
     container.innerHTML = chats.map(c => {
         let isMe = false;
-        if (currentUser.Role === 'SuperAdmin' && c.Sender_Role === 'SuperAdmin') isMe = true;
-        else if (c.Sender_Name === currentUser.FullName) isMe = true;
+        if (identity.Role === 'SuperAdmin' && c.Sender_Role === 'SuperAdmin') isMe = true;
+        else if (c.Sender_Name === identity.FullName || c.Sender_ID === identity.UserID || c.Sender_Email === identity.Email) isMe = true;
         const time = String(c.Timestamp || '').split(' ')[1] || '';
 
         if (isMe) {
@@ -7880,24 +7840,44 @@ function renderChatBubbles(chats) {
 
 async function sendChatMessage() {
     const input = document.getElementById('chat-input-msg');
+    const identity = getChatIdentity();
+    if (!input || !identity) {
+        showToast('Isi buku tamu terlebih dahulu untuk menggunakan chat.', 'warning');
+        return;
+    }
     const msg = input.value.trim();
     if (!msg) return;
     input.value = ''; 
     
     const container = document.getElementById('chat-messages-container');
-    const tempTime = new Date().getHours().toString().padStart(2,'0') + ':' + new Date().getMinutes().toString().padStart(2,'0');
-    
     container.innerHTML += `<div class="flex justify-end mb-2 opacity-50"><div class="max-w-[75%] bg-emerald-100 text-slate-800 p-3 rounded-2xl rounded-tr-sm shadow-sm border border-emerald-200"><p class="text-[13px] leading-relaxed">${escapeHtml(msg)}</p><p class="text-[9px] text-emerald-600 text-right mt-1 font-bold"><i class="fas fa-clock"></i></p></div></div>`;
     container.scrollTop = container.scrollHeight;
 
     let targetRoom = activeChatRoom;
-    if (currentUser.Role === 'SuperAdmin' && activeChatRoom !== 'Global' && activeChatRoom !== 'Admin') targetRoom = 'Admin';
+    if (identity.Role === 'SuperAdmin' && activeChatRoom !== 'Global' && activeChatRoom !== 'Admin') targetRoom = 'Admin';
 
     try {
-        const r = await apiCall('POST', { action: 'insert', sheet: 'Live_Chat', user: currentUser.UserID, data: { Sender_Name: currentUser.Role === 'SuperAdmin' ? 'Admin Support' : currentUser.FullName, Sender_Role: currentUser.Role, Room: targetRoom, Message: msg } });
-        if (r.status === 'success') syncChatMessages();
+        const senderName = identity.Role === 'SuperAdmin' ? 'Admin Support' : identity.FullName;
+        const result = await apiCall('POST', {
+            action: 'insert',
+            sheet: 'Live_Chat',
+            user: identity.UserID || identity.Email,
+            data: {
+                Sender_ID: identity.UserID || identity.Email,
+                Sender_Email: identity.Email || '',
+                Sender_Name: senderName,
+                Sender_Role: identity.Role || 'Visitor',
+                Room: targetRoom,
+                Message: msg
+            }
+        });
+        if (result?.status === 'success') {
+            syncChatMessages();
+        } else {
+            throw new Error(result?.message || 'Pesan tidak dapat disimpan.');
+        }
     } catch (e) {
-        showToast("Gagal mengirim", "error");
+        showToast(e.message || 'Gagal mengirim pesan.', 'error');
         input.value = msg; 
     }
 }
