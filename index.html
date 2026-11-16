@@ -289,6 +289,10 @@
        </section>
        <section id="pub-sec-gallery" class="pub-sec hidden w-full max-w-6xl mx-auto p-6 md:p-12"><div id="public-gallery-content" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">Memuat Gallery...</div></section>
        <section id="pub-sec-blog" class="pub-sec hidden w-full max-w-6xl mx-auto p-6 md:p-12"><div id="public-blog-content" class="grid grid-cols-1 md:grid-cols-2 gap-6">Memuat Blog...</div></section>
+       <section id="pub-sec-profile" class="pub-sec hidden w-full max-w-4xl mx-auto p-6 md:p-12" aria-labelledby="public-profile-heading">
+          <div class="mb-6"><h2 id="public-profile-heading" class="text-2xl font-black text-slate-900">Profil</h2><p class="text-sm text-slate-500 mt-2">Informasi akun Visitor Anda.</p></div>
+          <div id="public-profile-content"></div>
+       </section>
        <section id="pub-sec-documents" class="pub-sec hidden w-full max-w-6xl mx-auto p-6 md:p-12">
           <div class="mb-6"><h2 class="text-2xl font-black text-slate-900">CV &amp; Lamaran Kerja</h2><p class="text-sm text-slate-500 mt-2">Akses dokumen profesional setelah login.</p></div>
           <div id="public-documents-content" class="grid grid-cols-1 md:grid-cols-2 gap-5">Memuat Dokumen...</div>
@@ -691,11 +695,12 @@
         <div>
             <h4 class="text-white font-black mb-4 uppercase tracking-widest text-xs">Resources</h4>
             <nav class="footer-icon-nav" aria-label="Navigasi footer">
-                <button onclick="switchPublicSection('home')" class="footer-nav-icon" aria-label="Home" title="Home"><i class="fas fa-house"></i></button>
-                <button onclick="switchPublicSection('portfolio')" class="footer-nav-icon" aria-label="Portfolio dan Career" title="Portfolio dan Career"><i class="fas fa-briefcase"></i></button>
-                <button onclick="switchPublicSection('documents')" class="footer-nav-icon" aria-label="CV dan Lamaran Kerja" title="CV &amp; Lamaran Kerja"><i class="fas fa-file-lines"></i></button>
-                <button onclick="switchPublicSection('gallery')" class="footer-nav-icon" aria-label="Gallery" title="Gallery"><i class="fas fa-images"></i></button>
-                <button onclick="switchPublicSection('blog')" class="footer-nav-icon" aria-label="Blog" title="Blog"><i class="fas fa-newspaper"></i></button>
+                <button onclick="switchPublicSection('home')" class="footer-nav-icon" data-sec="home" aria-label="Home" title="Home"><i class="fas fa-house"></i></button>
+                <button onclick="switchPublicSection('portfolio')" class="footer-nav-icon" data-sec="portfolio" aria-label="Portfolio dan Career" title="Portfolio dan Career"><i class="fas fa-briefcase"></i></button>
+                <button onclick="switchPublicSection('documents')" class="footer-nav-icon" data-sec="documents" aria-label="CV dan Lamaran Kerja" title="CV &amp; Lamaran Kerja"><i class="fas fa-file-lines"></i></button>
+                <button onclick="switchPublicSection('gallery')" class="footer-nav-icon" data-sec="gallery" aria-label="Gallery" title="Gallery"><i class="fas fa-images"></i></button>
+                <button onclick="switchPublicSection('blog')" class="footer-nav-icon" data-sec="blog" aria-label="Blog" title="Blog"><i class="fas fa-newspaper"></i></button>
+                <button onclick="switchPublicSection('profile')" class="footer-nav-icon" data-sec="profile" aria-label="Profil" title="Profil"><i class="fas fa-user"></i></button>
             </nav>
             <div class="mt-5 flex flex-col items-start gap-3">
                 <button onclick="openModal('privacy')" class="footer-nav-link">Privacy Policy</button>

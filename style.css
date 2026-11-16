@@ -399,6 +399,48 @@ input[type=number] {
     outline: none;
 }
 
+.footer-nav-icon.active {
+    color: #67e8f9;
+    background: rgba(14, 165, 233, .12);
+    border-color: rgba(103, 232, 249, .35);
+}
+
+.public-visitor-layout {
+    display: grid;
+    grid-template-columns: minmax(220px, 260px) minmax(0, 1fr);
+    align-items: start;
+    gap: 20px;
+}
+
+.public-visitor-menu {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 12px;
+    border: 1px solid #e2e8f0;
+    border-radius: 20px;
+    background: #fff;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, .04);
+}
+
+.public-visitor-menu button { min-height: 44px; }
+.public-visitor-content { min-width: 0; }
+
+@media (max-width: 767px) {
+    .public-visitor-layout { grid-template-columns: minmax(0, 1fr); gap: 14px; }
+    .public-visitor-menu {
+        flex-direction: row;
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        padding: 8px;
+        border-radius: 16px;
+        scrollbar-width: thin;
+    }
+    .public-visitor-menu button { width: auto; white-space: nowrap; }
+    .public-visitor-menu > .my-1 { display: none; }
+}
+
 /* Floating public chat, with a 56px touch target for phones */
 .public-chat-fab {
     position: fixed;

@@ -13,6 +13,7 @@ let currentGuest = (() => {
 })();
 let authSessionToken = sessionStorage.getItem('zexraps_auth_session') || '';
 let pendingProtectedDocumentsAccess = false;
+let pendingPublicProfileAccess = false;
 let recoverySessionToken = '';
 let activeModule = 'Portfolio';
 let editingId = null;
@@ -1583,9 +1584,8 @@ async function switchVisitorTab(tab, isSilent = false) {
   });
 
   const container =
-    document.getElementById(
-      'visitor-content-container'
-    );
+    document.getElementById('public-visitor-content') ||
+    document.getElementById('visitor-content-container');
 
   if (!container) return;
 
@@ -2343,9 +2343,13 @@ async function saveVisitorProfile() {
         'success'
       );
 
-      switchVisitorTab(
-        'profile'
-      );
+      const publicProfileSection = document.getElementById('pub-sec-profile');
+      if (publicProfileSection && !publicProfileSection.classList.contains('hidden')) {
+        if (document.getElementById('public-visitor-content')) switchVisitorTab('profile');
+        else renderPublicProfile();
+      } else {
+        switchVisitorTab('profile');
+      }
 
     } else {
 
@@ -2761,6 +2765,10 @@ function navigateTo(
    RENDER VIEW (BERSIH DARI BLOKIR)
    ================================================================ */
 function renderView(view, section) {
+  if (view === 'visitor') {
+      view = 'public';
+      section = section || 'home';
+  }
   if (view === 'public' && String(section || '').toLowerCase() === 'career') {
       section = 'portfolio';
   }
@@ -2783,6 +2791,7 @@ function renderView(view, section) {
 
   if (view === 'public') {
       let sec = section || 'home';
+      if (sec === 'profil') sec = 'profile';
       document.querySelectorAll('.pub-sec').forEach(el => el.classList.add('hidden'));
       const target = document.getElementById(`pub-sec-${sec}`);
       if (target) target.classList.remove('hidden');
@@ -2795,12 +2804,14 @@ function renderView(view, section) {
               btn.classList.remove('text-slate-600');
           }
       });
-      renderPublicContent(false, sec);
+      document.querySelectorAll('.footer-nav-icon').forEach(btn => {
+          btn.classList.toggle('active', btn.getAttribute('data-sec') === sec);
+      });
+      if (sec === 'profile') renderPublicProfile();
+      else renderPublicContent(false, sec);
       
-      // MUNCULKAN FOOTER DINAMIS DI BAWAH HALAMAN PUBLIK
+      // Munculkan footer dinamis di dashboard publik.
       if (typeof renderDynamicFooter === 'function') renderDynamicFooter();
-  } else if (view === 'visitor') {
-      switchVisitorTab('dash');
   }
 }
 
@@ -2825,8 +2836,9 @@ window.addEventListener(
     isNavigatingHistory = true;
 
     if (e.state && e.state.view) {
-      // CEK: Jika user kembali ke halaman portal (attendance) atau home, paksa LOGOUT
-      if ((e.state.view === 'attendance' || e.state.view === 'public') && currentUser) {
+      // Biarkan sesi tetap aktif saat navigasi antarseksi dashboard publik.
+      const publicViewIsVisible = !document.getElementById('view-public')?.classList.contains('hidden');
+      if (currentUser && (e.state.view === 'attendance' || (e.state.view === 'public' && !publicViewIsVisible))) {
         handleLogout(); 
       }
       // CEK: Jika user kembali ke portal akses, bersihkan form pendaftaran
@@ -2867,8 +2879,11 @@ function switchPublicSection(
       ? 'portfolio'
       : ['cv', 'lamaran', 'cv dan lamaran kerja', 'cv & lamaran kerja'].includes(requestedSection)
           ? 'documents'
+          : ['profile', 'profil'].includes(requestedSection)
+              ? 'profile'
           : requestedSection;
   if (publicSection !== 'documents') pendingProtectedDocumentsAccess = false;
+  if (publicSection !== 'profile') pendingPublicProfileAccess = false;
   const mobileMenu = document.getElementById('mobile-menu');
   if (mobileMenu) mobileMenu.classList.add('hidden');
 
@@ -3400,9 +3415,12 @@ async function renderPublicHome(r) {
 
   const img = safeUrl(x.HeroImage_URL);
   const htmlHero = `<div class="bg-white rounded-3xl p-8 md:p-14 shadow-sm border border-slate-200 flex flex-col md:flex-row items-center gap-10">${img ? `<img src="${img}" class="w-36 h-36 md:w-52 md:h-52 rounded-full object-cover shadow-xl border-4 border-white">` : ''}<div class="text-center md:text-left flex-1"><h1 class="text-3xl md:text-5xl font-black text-slate-900 leading-tight">${escapeHtml(safeText(x.Title))}</h1><p class="text-blue-600 font-bold mt-3">${escapeHtml(safeText(x.Subtitle))}</p><p class="text-slate-500 mt-4 max-w-2xl text-sm md:text-base leading-relaxed whitespace-pre-line">${escapeHtml(safeText(x.Description))}</p>${x.Action_Button ? `<button onclick="switchPublicSection('portfolio')" class="mt-7 bg-blue-600 text-white px-6 py-3 rounded-xl font-bold text-sm shadow-lg">${escapeHtml(x.Action_Button)}</button>` : ''}</div></div>`;
+  const visitorWelcome = currentUser
+    ? `<div class="bg-slate-900 rounded-3xl p-5 sm:p-6 text-white shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-4"><div class="flex items-center gap-4 min-w-0"><span class="w-12 h-12 rounded-2xl bg-white/10 text-blue-300 flex items-center justify-center text-xl shrink-0"><i class="fas fa-user"></i></span><div class="min-w-0"><p class="text-xs uppercase tracking-wider text-slate-400 font-bold">Dashboard Visitor</p><h2 class="font-black text-lg truncate">Halo, ${escapeHtml(safeText(currentUser.FullName, 'Visitor'))}</h2><p class="text-sm text-slate-400 truncate">${escapeHtml(safeText(currentUser.Email))}</p></div></div><button onclick="switchPublicSection('profile')" class="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-white text-slate-900 font-bold text-sm"><i class="fas fa-user-pen"></i> Profil Saya</button></div>`
+    : '';
   
   e.className = 'flex flex-col gap-6 animate-fade-in w-full';
-  e.innerHTML = htmlHero + `<div id="public-stats-container" class="mt-6 w-full"><div class="text-center text-slate-500 text-sm py-12 bg-white rounded-3xl border shadow-sm"><i class="fas fa-spinner fa-spin text-3xl mb-3 text-blue-500"></i><br>Menarik Data Komunitas...</div></div>`;
+  e.innerHTML = visitorWelcome + htmlHero + `<div id="public-stats-container" class="mt-6 w-full"><div class="text-center text-slate-500 text-sm py-12 bg-white rounded-3xl border shadow-sm"><i class="fas fa-spinner fa-spin text-3xl mb-3 text-blue-500"></i><br>Menarik Data Komunitas...</div></div>`;
 
   try {
     const [att, usersRes] = await Promise.all([getCachedData('Visitor_Attendance'), getCachedData('Users')]);
@@ -3425,6 +3443,46 @@ async function renderPublicHome(r) {
   } catch (err) {
     document.getElementById('public-stats-container').innerHTML = '<div class="p-4 text-center text-rose-500 text-sm bg-rose-50 rounded-2xl">Gagal memuat data statistik.</div>';
   }
+}
+
+function renderPublicProfile() {
+  const container = document.getElementById('public-profile-content');
+  if (!container) return;
+
+  if (!currentUser) {
+    container.innerHTML = `<div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-8 sm:p-12 text-center"><div class="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center text-2xl mx-auto mb-5"><i class="fas fa-user-lock"></i></div><h3 class="text-xl font-black text-slate-900">Login untuk melihat Profil</h3><p class="text-sm text-slate-500 mt-2 mb-6">Masuk ke akun Visitor untuk melihat dan memperbarui informasi profil Anda.</p><button onclick="requestPublicProfileLogin()" class="inline-flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-bold text-sm"><i class="fas fa-arrow-right-to-bracket"></i> Portal Akses</button></div>`;
+    return;
+  }
+
+  const menuItems = [
+    ['dash', 'Dashboard Utama', 'fa-chart-pie'],
+    ['profile', 'Profil Saya', 'fa-user'],
+    ['edit', 'Edit Profil', 'fa-user-pen'],
+    ['activity', 'Riwayat Aktivitas', 'fa-clock-rotate-left'],
+    ['download', 'Riwayat Download', 'fa-download'],
+    ['bookmark', 'Bookmark', 'fa-bookmark'],
+    ['favorite', 'Favorite', 'fa-heart'],
+    ['message', 'Pesan Inbox', 'fa-envelope'],
+    ['notif', 'Notifikasi', 'fa-bell'],
+    ['documents', 'CV & Lamaran Kerja', 'fa-file-lines'],
+    ['settings', 'Pengaturan Akun', 'fa-gear'],
+    ['security', 'Keamanan Akun', 'fa-shield-halved'],
+    ['password', 'Ganti Password', 'fa-key']
+  ];
+  const menu = menuItems.map(([tab, label, icon]) => `<button onclick="switchVisitorTab('${tab}')" class="v-btn w-full shrink-0 text-left px-3 py-3 rounded-xl hover:bg-slate-50 transition-colors text-sm font-bold text-slate-600" data-vtab="${tab}"><i class="fas ${icon} w-5 mr-2 text-slate-400"></i>${label}</button>`).join('');
+
+  container.innerHTML = `<div class="space-y-5 animate-fade-in">
+    <section class="rounded-3xl bg-gradient-to-r from-blue-600 to-indigo-600 p-6 sm:p-8 text-white shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div><p class="text-xs font-bold uppercase tracking-wider text-blue-100">Dashboard Visitor</p><h3 class="text-2xl font-black mt-1">Halo, ${escapeHtml(safeText(currentUser.FullName, 'Visitor'))}</h3><p class="text-sm text-blue-100 mt-1">Kelola akun dan aktivitas Anda di sini.</p></div>
+      <button onclick="handleLogout()" class="inline-flex items-center justify-center gap-2 bg-white/15 hover:bg-white/25 px-4 py-3 rounded-xl font-bold text-sm"><i class="fas fa-right-from-bracket"></i> Logout</button>
+    </section>
+    <div class="public-visitor-layout">
+      <nav class="public-visitor-menu" aria-label="Menu akun Visitor">${menu}<div class="my-1 border-t border-slate-100"></div><button onclick="openHelpCenter()" class="w-full text-left px-3 py-3 rounded-xl hover:bg-blue-50 text-blue-600 font-bold text-sm"><i class="fas fa-book-open w-5 mr-2"></i>Pusat Panduan</button></nav>
+      <div id="public-visitor-content" class="public-visitor-content"></div>
+    </div>
+  </div>`;
+
+  switchVisitorTab('profile');
 }
 
 /* ================================================================
@@ -6151,7 +6209,11 @@ async function handleLogin() {
       if (pendingProtectedDocumentsAccess) {
         pendingProtectedDocumentsAccess = false;
         navigateTo('public', 'documents', true);
+      } else if (pendingPublicProfileAccess && currentUser.Role !== 'SuperAdmin') {
+        pendingPublicProfileAccess = false;
+        navigateTo('public', 'profile', true);
       } else if (currentUser.Role === 'SuperAdmin') {
+        pendingPublicProfileAccess = false;
         initAdminSidebar();
         switchView('admin');
         
@@ -6161,7 +6223,7 @@ async function handleLogin() {
         }, 100);
 
       } else {
-        switchView('visitor');
+        switchView('public');
       }
     } else if (json?.status === 'success') {
       showToast('Server tidak mengirimkan data akun. Silakan coba lagi.', 'error');
@@ -6875,10 +6937,17 @@ async function submitNewRecoveryData() {
 /* ================================================================
    PROTECTED DOCUMENTS
    ================================================================ */
+function requestPublicProfileLogin() {
+  pendingPublicProfileAccess = true;
+  pendingProtectedDocumentsAccess = false;
+  switchView('login');
+}
+
 function requestProtectedDocuments() {
 
   if (!currentUser) {
     pendingProtectedDocumentsAccess = true;
+    pendingPublicProfileAccess = false;
     switchView(
       'login'
     );
@@ -7298,9 +7367,19 @@ async function refreshCurrentData(isSilent = false) {
 
     // D. VIEW PUBLIK
     else if (vPublic && !vPublic.classList.contains('hidden')) {
-        const activeBtn = document.querySelector('.nav-btn.active');
+        const activeBtn = document.querySelector('.nav-btn.active, .footer-nav-icon.active');
         let sec = 'home';
         if (activeBtn) sec = activeBtn.getAttribute('data-sec') || 'home';
+
+        if (sec === 'profile') {
+            const activeVisitorTab = document.querySelector('#pub-sec-profile .v-btn.bg-blue-50, #pub-sec-profile .v-btn.active');
+            if (activeVisitorTab && typeof switchVisitorTab === 'function') {
+                await switchVisitorTab(activeVisitorTab.getAttribute('data-vtab') || 'profile', isSilent);
+            } else if (typeof renderPublicProfile === 'function') {
+                renderPublicProfile();
+            }
+            return;
+        }
         
         const containerMap = {
             home: 'public-home-content',
