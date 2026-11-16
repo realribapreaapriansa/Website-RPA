@@ -427,6 +427,63 @@ input[type=number] {
 .public-visitor-menu button { min-height: 44px; }
 .public-visitor-content { min-width: 0; }
 
+.public-content-card { min-width: 0; }
+
+.public-content-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 20px;
+    padding-top: 14px;
+    border-top: 1px solid #e2e8f0;
+}
+
+.public-content-action {
+    min-height: 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    padding: 8px 11px;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #fff;
+    color: #475569;
+    font-size: .75rem;
+    font-weight: 800;
+    cursor: pointer;
+    transition: color .18s ease, background-color .18s ease, border-color .18s ease, transform .18s ease;
+}
+
+.public-content-action:hover,
+.public-content-action:focus-visible {
+    color: #2563eb;
+    background: #eff6ff;
+    border-color: #bfdbfe;
+    outline: none;
+}
+
+.public-content-action:active { transform: scale(.97); }
+.public-content-action.is-liked { color: #e11d48; background: #fff1f2; border-color: #fecdd3; }
+.public-content-action.is-saved { color: #2563eb; background: #eff6ff; border-color: #bfdbfe; }
+.public-action-count { min-width: 1ch; color: #64748b; }
+
+.public-content-comments {
+    margin-top: 14px;
+    padding: 14px;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    background: #f8fafc;
+}
+
+.public-comment-list { display: grid; gap: 8px; margin-bottom: 12px; }
+.public-comment-item { padding: 11px 12px; border: 1px solid #e2e8f0; border-radius: 12px; background: #fff; overflow-wrap: anywhere; }
+.public-comment-input { width: 100%; min-height: 76px; resize: vertical; padding: 11px 12px; border: 1px solid #cbd5e1; border-radius: 12px; background: #fff; color: #0f172a; font: inherit; font-size: .85rem; outline: none; }
+.public-comment-input:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59, 130, 246, .12); }
+.public-comment-submit { min-height: 40px; padding: 9px 14px; border: 0; border-radius: 11px; background: #2563eb; color: #fff; font-size: .75rem; font-weight: 800; }
+.public-comment-submit:hover { background: #1d4ed8; }
+
 @media (max-width: 767px) {
     .public-visitor-layout { grid-template-columns: minmax(0, 1fr); gap: 14px; }
     .public-visitor-menu {
@@ -439,6 +496,8 @@ input[type=number] {
     }
     .public-visitor-menu button { width: auto; white-space: nowrap; }
     .public-visitor-menu > .my-1 { display: none; }
+    .public-content-actions { gap: 6px; }
+    .public-content-action { min-height: 42px; padding: 8px 10px; }
 }
 
 /* Floating public chat, with a 56px touch target for phones */

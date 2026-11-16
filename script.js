@@ -14,6 +14,7 @@ let currentGuest = (() => {
 let authSessionToken = sessionStorage.getItem('zexraps_auth_session') || '';
 let pendingProtectedDocumentsAccess = false;
 let pendingPublicProfileAccess = false;
+let pendingContentAction = null;
 let recoverySessionToken = '';
 let activeModule = 'Portfolio';
 let editingId = null;
@@ -1827,82 +1828,31 @@ async function switchVisitorTab(tab, isSilent = false) {
 
     } else if (tab === 'download') {
 
-      const res =
-        await getCachedData(
-          'Documents'
+      const res = await getCachedData('System_Logs', true);
+      const uid = String(currentUser?.UserID || '');
+      const email = String(currentUser?.Email || '').toLowerCase();
+      const rows = (res.data || []).filter(x => {
+        const action = String(x.Action || '').toUpperCase();
+        const actor = String(x.User || '');
+        const belongsToVisitor = currentUser && (
+          (uid && actor === uid) ||
+          (email && actor.toLowerCase() === email)
         );
+        return belongsToVisitor && action === 'CONTENT_DOWNLOAD';
+      }).reverse();
 
-      const rows =
-        (res.data || [])
-        .filter(
-          x =>
-            !x.Status ||
-            x.Status === 'publish' ||
-            x.Status === 'active'
-        );
+      const historyCards = rows.map(x =>
+        '<article class="p-4 bg-slate-50 rounded-2xl border border-slate-100">' +
+          '<div class="text-xs text-blue-600 font-bold">' + escapeHtml(x.Timestamp || '') + '</div>' +
+          '<div class="font-bold mt-1">' + escapeHtml(x.Description || 'Konten diunduh') + '</div>' +
+        '</article>'
+      ).join('');
 
       container.innerHTML =
-        `<div class="bg-white p-8 rounded-3xl border shadow-sm animate-fade-in">
-
-          <h2 class="font-extrabold text-xl text-slate-900 mb-5">
-            Dokumen
-          </h2>
-
-          ${
-            rows.length
-              ? `<div class="grid sm:grid-cols-2 gap-4">
-
-                ${
-                  rows.map(
-                    x => {
-
-                      const u =
-                        safeUrl(
-                          x.File_URL
-                        );
-
-                      return `
-                        <div class="p-5 bg-slate-50 rounded-2xl border">
-
-                          <div class="font-bold">
-                            ${escapeHtml(
-                              x.Title ||
-                              'Dokumen'
-                            )}
-                          </div>
-
-                          <p class="text-xs text-slate-500 mt-2">
-                            ${escapeHtml(
-                              x.Description ||
-                              ''
-                            )}
-                          </p>
-
-                          ${
-                            u
-                              ? `<a
-                                  href="${u}"
-                                  target="_blank"
-                                  rel="noopener"
-                                  class="inline-flex mt-4 bg-blue-600 text-white px-4 py-2 rounded-xl text-xs font-bold"
-                                >
-                                  Buka Dokumen
-                                </a>`
-                              : ''
-                          }
-
-                        </div>
-                      `;
-                    }
-                  ).join('')
-                }
-
-              </div>`
-              : '<div class="empty-state">Belum ada dokumen.</div>'
-          }
-
-        </div>`;
-
+        '<div class="bg-white p-8 rounded-3xl border shadow-sm animate-fade-in">' +
+          '<h2 class="font-extrabold text-xl text-slate-900 mb-5">Riwayat Download</h2>' +
+          (rows.length ? '<div class="space-y-3">' + historyCards + '</div>' : '<div class="empty-state">Belum ada download yang tercatat.</div>') +
+        '</div>';
     } else if (tab === 'bookmark') {
 
       const [
@@ -1938,7 +1888,9 @@ async function switchVisitorTab(tab, isSilent = false) {
         const id =
           x.ProjectID ||
           x.BlogID ||
-          x.GalleryID;
+          x.GalleryID ||
+          x.ID ||
+          x.id;
 
         if (id) {
           maps[String(id)] = x;
@@ -2884,6 +2836,7 @@ function switchPublicSection(
           : requestedSection;
   if (publicSection !== 'documents') pendingProtectedDocumentsAccess = false;
   if (publicSection !== 'profile') pendingPublicProfileAccess = false;
+  if (!['blog', 'gallery'].includes(publicSection)) pendingContentAction = null;
   const mobileMenu = document.getElementById('mobile-menu');
   if (mobileMenu) mobileMenu.classList.add('hidden');
 
@@ -3311,7 +3264,7 @@ async function renderPublicContent(
     'Career_Timeline',
     'Gallery',
     'Blog',
-    ...(currentUser ? ['Documents'] : []),
+    ...(currentUser ? ['Documents', 'Bookmarks'] : []),
     'Contact'
   ];
 
@@ -3387,6 +3340,7 @@ async function renderPublicContent(
   // 3. Tarik Data Menu Lainnya di Latar Belakang (Tanpa Mengganggu Layar Utama)
   const backgroundNames = names.filter(name => name !== priority && name !== 'Contact');
   await Promise.allSettled(backgroundNames.map(name => getCachedData(name, force)));
+  updatePublicBookmarkButtons();
 
   names.forEach(name => {
     // Jangan render ulang jika sudah selesai dirender di blok prioritas atas
@@ -3661,83 +3615,333 @@ function renderPublicCareer(r) {
 }
 
 /* ================================================================
+   PUBLIC CONTENT ACTIONS (BLOG & GALLERY)
+   ================================================================ */
+function publicContentDomKey(contentType, contentId) {
+  return `${String(contentType || 'content').toLowerCase()}-${String(contentId || 'item').replace(/[^a-z0-9_-]/gi, '-')}`;
+}
+
+function inlineJsArg(value) {
+  const json = JSON.stringify(String(value ?? '')).replace(/</g, '\\u003c').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
+  return escapeHtml(json);
+}
+
+function readLocalPublicData(storageKey, fallback = {}) {
+  try {
+    return JSON.parse(localStorage.getItem(storageKey) || JSON.stringify(fallback));
+  } catch (error) {
+    return fallback;
+  }
+}
+
+function writeLocalPublicData(storageKey, value) {
+  try {
+    localStorage.setItem(storageKey, JSON.stringify(value));
+    return true;
+  } catch (error) {
+    return false;
+  }
+}
+
+function getPublicLikeStorageKey(contentType, contentId) {
+  const userKey = currentUser?.UserID || currentUser?.Email || 'public';
+  return `${userKey}:${contentType}:${contentId}`;
+}
+
+function getPublicContentId(item, contentType) {
+  const keys = contentType === 'Blog'
+    ? ['BlogID', 'PostID', 'ID', 'id']
+    : ['GalleryID', 'ID', 'id'];
+  const value = keys.map(key => item?.[key]).find(Boolean) || item?.Title || 'item';
+  return String(value);
+}
+
+function isPublicContentBookmarked(contentType, contentId) {
+  if (!currentUser) return false;
+  const userId = String(currentUser.UserID || currentUser.Email || '');
+  return (memoryCache.Bookmarks?.data || []).some(row =>
+    String(row.UserID || '') === userId &&
+    String(row.ContentID || '') === String(contentId) &&
+    String(row.ContentType || '').toLowerCase() === String(contentType).toLowerCase()
+  );
+}
+
+function updatePublicBookmarkButtons() {
+  document.querySelectorAll('.public-bookmark-action').forEach(button => {
+    const saved = isPublicContentBookmarked(button.dataset.contentType, button.dataset.contentId);
+    button.classList.toggle('is-saved', saved);
+    button.setAttribute('aria-pressed', String(saved));
+    button.innerHTML = `<i class="fas ${saved ? 'fa-bookmark' : 'fa-bookmark'}" aria-hidden="true"></i><span>${saved ? 'Tersimpan' : 'Simpan'}</span>`;
+  });
+}
+
+function buildPublicContentActions(item, contentType, contentId, downloadUrl = '', downloadText = '') {
+  const title = safeText(item?.Title, contentType);
+  const key = publicContentDomKey(contentType, contentId);
+  const likeKey = getPublicLikeStorageKey(contentType, contentId);
+  const likes = readLocalPublicData('zexraps_public_likes', {});
+  const liked = Boolean(likes[likeKey]);
+  const baseLikes = Math.max(0, Number(item?.Like_Count || item?.Likes || 0) || 0);
+  const saved = isPublicContentBookmarked(contentType, contentId);
+  const typeArg = inlineJsArg(contentType);
+  const idArg = inlineJsArg(contentId);
+  const titleArg = inlineJsArg(title);
+  const sectionArg = inlineJsArg(contentType.toLowerCase());
+  const downloadUrlArg = inlineJsArg(downloadUrl);
+  const downloadTextArg = inlineJsArg(downloadText);
+
+  return `<div class="public-content-actions" aria-label="Aksi konten">
+    <button type="button" class="public-content-action public-like-action ${liked ? 'is-liked' : ''}" data-liked="${liked}" data-base-count="${baseLikes}" aria-pressed="${liked}" aria-label="Sukai ${escapeHtml(title)}" onclick="togglePublicContentLike(this, ${typeArg}, ${idArg}, ${titleArg})"><i class="fas fa-heart" aria-hidden="true"></i><span>Like</span><span class="public-action-count" data-like-count>${baseLikes + (liked ? 1 : 0)}</span></button>
+    <button type="button" class="public-content-action" aria-label="Komentari ${escapeHtml(title)}" onclick="togglePublicContentComments(this, ${typeArg}, ${idArg})"><i class="fas fa-comment" aria-hidden="true"></i><span>Comment</span></button>
+    <button type="button" class="public-content-action" aria-label="Bagikan ${escapeHtml(title)}" onclick="sharePublicContent(${typeArg}, ${idArg}, ${titleArg})"><i class="fas fa-share-nodes" aria-hidden="true"></i><span>Share</span></button>
+    <button type="button" class="public-content-action public-bookmark-action ${saved ? 'is-saved' : ''}" data-content-type="${escapeHtml(contentType)}" data-content-id="${escapeHtml(contentId)}" aria-pressed="${saved}" aria-label="Simpan ${escapeHtml(title)}" onclick="savePublicContentBookmark(this, ${typeArg}, ${idArg}, ${titleArg}, ${sectionArg})"><i class="fas fa-bookmark" aria-hidden="true"></i><span>${saved ? 'Tersimpan' : 'Simpan'}</span></button>
+    <button type="button" class="public-content-action" aria-label="Unduh ${escapeHtml(title)}" onclick="downloadPublicContent(this, ${typeArg}, ${idArg}, ${titleArg}, ${downloadUrlArg}, ${downloadTextArg})"><i class="fas fa-download" aria-hidden="true"></i><span>Download</span></button>
+  </div>
+  <section id="public-comments-${key}" class="public-content-comments hidden" aria-label="Komentar untuk ${escapeHtml(title)}">
+    <div class="public-comment-list" id="public-comment-list-${key}"></div>
+    <label class="sr-only" for="public-comment-input-${key}">Tulis komentar</label>
+    <textarea id="public-comment-input-${key}" rows="2" maxlength="1000" placeholder="Tulis komentar..." class="public-comment-input"></textarea>
+    <div class="flex justify-end mt-2"><button type="button" class="public-comment-submit" onclick="submitPublicContentComment(${typeArg}, ${idArg}, ${titleArg})"><i class="fas fa-paper-plane mr-2"></i>Kirim Komentar</button></div>
+  </section>`;
+}
+
+async function recordPublicContentAction(action, contentType, contentId, title, details = '') {
+  const user = currentUser?.UserID || currentUser?.Email || currentGuest?.Email || currentGuest?.FullName || 'Public';
+  const description = `${contentType} | ${title} | ID: ${contentId}${details ? ` | ${details}` : ''}`;
+  try {
+    const result = await apiCall('POST', {
+      action: 'logActivity',
+      user,
+      data: { action, description }
+    });
+    if (currentUser && result?.status === 'success') invalidateCache('System_Logs');
+    return result?.status === 'success';
+  } catch (error) {
+    console.warn(`Gagal mencatat aktivitas ${action}:`, error);
+    return false;
+  }
+}
+
+function togglePublicContentLike(button, contentType, contentId, title) {
+  const likes = readLocalPublicData('zexraps_public_likes', {});
+  const likeKey = getPublicLikeStorageKey(contentType, contentId);
+  const liked = !Boolean(likes[likeKey]);
+  likes[likeKey] = liked;
+  writeLocalPublicData('zexraps_public_likes', likes);
+
+  const baseCount = Math.max(0, Number(button.dataset.baseCount || 0) || 0);
+  button.dataset.liked = String(liked);
+  button.classList.toggle('is-liked', liked);
+  button.setAttribute('aria-pressed', String(liked));
+  const count = button.querySelector('[data-like-count]');
+  if (count) count.textContent = String(baseCount + (liked ? 1 : 0));
+  recordPublicContentAction(liked ? 'CONTENT_LIKE' : 'CONTENT_UNLIKE', contentType, contentId, title);
+}
+
+function readPublicContentComments(contentType, contentId) {
+  const comments = readLocalPublicData('zexraps_public_comments', {});
+  return Array.isArray(comments[`${contentType}:${contentId}`]) ? comments[`${contentType}:${contentId}`] : [];
+}
+
+function renderPublicContentComments(contentType, contentId) {
+  const key = publicContentDomKey(contentType, contentId);
+  const list = document.getElementById(`public-comment-list-${key}`);
+  if (!list) return;
+  const comments = readPublicContentComments(contentType, contentId);
+  list.innerHTML = comments.length
+    ? comments.map(comment => `<article class="public-comment-item"><p class="font-bold text-slate-800">${escapeHtml(comment.name || 'Pengunjung')}</p><p class="text-sm text-slate-600 mt-1 whitespace-pre-wrap">${escapeHtml(comment.text || '')}</p><time class="text-[10px] text-slate-400 mt-2 block">${escapeHtml(comment.date || '')}</time></article>`).join('')
+    : '<p class="text-xs text-slate-400 py-2">Belum ada komentar di perangkat ini.</p>';
+}
+
+function togglePublicContentComments(button, contentType, contentId) {
+  const panel = document.getElementById(`public-comments-${publicContentDomKey(contentType, contentId)}`);
+  if (!panel) return;
+  const willOpen = panel.classList.contains('hidden');
+  panel.classList.toggle('hidden', !willOpen);
+  button.setAttribute('aria-expanded', String(willOpen));
+  if (willOpen) renderPublicContentComments(contentType, contentId);
+}
+
+async function submitPublicContentComment(contentType, contentId, title) {
+  const key = publicContentDomKey(contentType, contentId);
+  const input = document.getElementById(`public-comment-input-${key}`);
+  const text = String(input?.value || '').trim();
+  if (!text) return showToast('Tulis komentar terlebih dahulu.', 'warning');
+
+  const comments = readLocalPublicData('zexraps_public_comments', {});
+  const comment = {
+    name: safeText(currentUser?.FullName || currentGuest?.FullName, 'Pengunjung'),
+    text,
+    date: new Date().toLocaleString('id-ID')
+  };
+  const commentKey = `${contentType}:${contentId}`;
+  comments[commentKey] = [...(Array.isArray(comments[commentKey]) ? comments[commentKey] : []), comment];
+  const savedLocally = writeLocalPublicData('zexraps_public_comments', comments);
+  if (input) input.value = '';
+  renderPublicContentComments(contentType, contentId);
+  const savedToAccount = await recordPublicContentAction('CONTENT_COMMENT', contentType, contentId, title, text);
+  if (savedToAccount) showToast('Komentar berhasil dikirim dan tercatat di aktivitas.', 'success');
+  else showToast(savedLocally ? 'Komentar tersimpan di perangkat ini.' : 'Komentar belum dapat disimpan.', savedLocally ? 'info' : 'error');
+}
+
+async function sharePublicContent(contentType, contentId, title) {
+  const shareData = { title, text: `Lihat ${contentType}: ${title}`, url: location.href };
+  try {
+    if (navigator.share) {
+      await navigator.share(shareData);
+    } else if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(shareData.url);
+      showToast('Tautan berhasil disalin.', 'success');
+    } else {
+      const input = document.createElement('textarea');
+      input.value = shareData.url;
+      input.style.position = 'fixed';
+      input.style.opacity = '0';
+      document.body.appendChild(input);
+      input.select();
+      const copied = document.execCommand('copy');
+      input.remove();
+      if (!copied) throw new Error('Clipboard tidak tersedia.');
+      showToast('Tautan berhasil disalin.', 'success');
+    }
+    recordPublicContentAction('CONTENT_SHARE', contentType, contentId, title);
+  } catch (error) {
+    if (error?.name !== 'AbortError') showToast('Tautan tidak dapat dibagikan.', 'error');
+  }
+}
+
+async function savePublicContentBookmark(button, contentType, contentId, title, section) {
+  const action = { action: 'bookmark', contentType, contentId, title, section };
+  if (!currentUser) {
+    pendingContentAction = action;
+    pendingProtectedDocumentsAccess = false;
+    switchView('login');
+    showToast('Login Visitor diperlukan untuk menyimpan konten.', 'info');
+    return;
+  }
+
+  const userId = String(currentUser.UserID || currentUser.Email || '');
+  if (!userId) return showToast('ID akun Visitor tidak ditemukan.', 'error');
+  toggleLoader(true);
+  try {
+    const result = await getCachedData('Bookmarks', true);
+    const rows = result.data || [];
+    const existing = rows.some(row =>
+      String(row.UserID || '') === userId &&
+      String(row.ContentID || '') === String(contentId) &&
+      String(row.ContentType || '').toLowerCase() === String(contentType).toLowerCase()
+    );
+    if (!existing) {
+      const response = await apiCall('POST', {
+        action: 'insert',
+        sheet: 'Bookmarks',
+        user: userId,
+        data: {
+          UserID: userId,
+          ContentID: String(contentId),
+          ContentType: String(contentType),
+          Date: new Date().toISOString(),
+          Status: 'bookmark'
+        }
+      });
+      if (response?.status !== 'success') throw new Error(response?.message || 'Bookmark gagal disimpan.');
+    }
+
+    const savedRow = {
+      UserID: userId,
+      ContentID: String(contentId),
+      ContentType: String(contentType),
+      Date: new Date().toISOString(),
+      Status: 'bookmark'
+    };
+    memoryCache.Bookmarks = { ...result, status: 'success', data: existing ? rows : [...rows, savedRow] };
+    cacheTimestamps.Bookmarks = Date.now();
+    updatePublicBookmarkButtons();
+    showToast(existing ? 'Konten ini sudah ada di Bookmark Visitor.' : 'Konten tersimpan di Bookmark Visitor.', 'success');
+  } catch (error) {
+    console.error('Gagal menyimpan bookmark:', error);
+    showToast(error.message || 'Bookmark gagal disimpan.', 'error');
+  } finally {
+    toggleLoader(false);
+  }
+}
+
+function downloadPublicContent(button, contentType, contentId, title, downloadUrl, downloadText) {
+  if (!currentUser) {
+    pendingContentAction = { action: 'download', contentType, contentId, title, section: contentType.toLowerCase() };
+    pendingProtectedDocumentsAccess = false;
+    switchView('login');
+    showToast('Login Visitor diperlukan untuk mengunduh konten.', 'info');
+    return;
+  }
+
+  const safeDownloadUrl = safeUrl(downloadUrl);
+  const fileBaseName = String(title || contentType).replace(/[^a-z0-9_-]+/gi, '-').replace(/^-|-$/g, '').slice(0, 80) || 'konten';
+  let fileExtension = safeDownloadUrl ? '.bin' : '.txt';
+  if (safeDownloadUrl) {
+    try {
+      fileExtension = new URL(safeDownloadUrl, location.href).pathname.match(/\.[a-z0-9]{1,8}$/i)?.[0] || '.bin';
+    } catch (error) {}
+  }
+  const fileName = `${fileBaseName}${fileExtension}`;
+  const anchor = document.createElement('a');
+  let objectUrl = '';
+  if (safeDownloadUrl) {
+    anchor.href = safeDownloadUrl;
+    anchor.target = '_blank';
+    anchor.rel = 'noopener';
+    anchor.download = fileName;
+  } else {
+    const blob = new Blob([`\uFEFF${title}\n\n${downloadText || ''}`], { type: 'text/plain;charset=utf-8' });
+    objectUrl = URL.createObjectURL(blob);
+    anchor.href = objectUrl;
+    anchor.download = fileName;
+  }
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  if (objectUrl) setTimeout(() => URL.revokeObjectURL(objectUrl), 30000);
+  recordPublicContentAction('CONTENT_DOWNLOAD', contentType, contentId, title).then(recorded => {
+    showToast(recorded ? 'Unduhan tercatat di Riwayat Download Visitor.' : 'Unduhan dimulai, tetapi gagal dicatat di Riwayat Download.', recorded ? 'success' : 'warning');
+  });
+}
+
+function completePendingContentAction(action) {
+  pendingContentAction = null;
+  navigateTo('public', action.section || 'home', true);
+  if (action.action === 'bookmark') {
+    setTimeout(() => savePublicContentBookmark(null, action.contentType, action.contentId, action.title, action.section), 150);
+  } else {
+    setTimeout(() => showToast('Login berhasil. Tombol Download sekarang aktif; tekan lagi untuk mengunduh.', 'success'), 150);
+  }
+}
+
+/* ================================================================
    PUBLIC GALLERY
    ================================================================ */
 function renderPublicGallery(r) {
 
-  const e =
-    document.getElementById(
-      'public-gallery-content'
-    );
-
+  const e = document.getElementById('public-gallery-content');
   if (!e) return;
 
-  const a =
-    r.filter(
-      x =>
-        !x.Status ||
-        x.Status === 'publish' ||
-        x.Status === 'active'
-    );
+  const items = (r || []).filter(x => !x.Status || x.Status === 'publish' || x.Status === 'active');
+  if (!items.length) return renderEmpty(e, 'Belum ada gallery.');
 
-  if (!a.length) {
-
-    renderEmpty(
-      e,
-      'Belum ada gallery.'
-    );
-
-    return;
-  }
-
-  e.innerHTML =
-    a.map(
-      x => {
-
-        const img =
-          safeUrl(
-            x.Image_URL
-          );
-
-        return `
-          <article class="bg-white rounded-3xl border shadow-sm overflow-hidden">
-
-            ${
-              img
-                ? `<img
-                    src="${img}"
-                    class="w-full h-64 object-cover"
-                    alt=""
-                  >`
-                : ''
-            }
-
-            <div class="p-5">
-
-              <h3 class="font-black">
-                ${escapeHtml(
-                  safeText(
-                    x.Title,
-                    'Gallery'
-                  )
-                )}
-              </h3>
-
-              <p class="text-sm text-slate-500 mt-2">
-                ${escapeHtml(
-                  safeText(
-                    x.Description
-                  )
-                )}
-              </p>
-
-            </div>
-
-          </article>
-        `;
-      }
-    )
-    .join('');
+  e.innerHTML = items.map(item => {
+    const img = safeUrl(item.Image_URL);
+    const title = safeText(item.Title, 'Gallery');
+    const description = safeText(item.Description);
+    const id = getPublicContentId(item, 'Gallery');
+    return `<article class="bg-white rounded-3xl border shadow-sm overflow-hidden public-content-card">
+      ${img ? `<img src="${img}" class="w-full h-64 object-cover" loading="lazy" alt="${escapeHtml(title)}">` : ''}
+      <div class="p-5">
+        <h3 class="font-black">${escapeHtml(title)}</h3>
+        <p class="text-sm text-slate-500 mt-2 whitespace-pre-line">${escapeHtml(description)}</p>
+        ${buildPublicContentActions(item, 'Gallery', id, img, description || title)}
+      </div>
+    </article>`;
+  }).join('');
+  updatePublicBookmarkButtons();
 }
 
 /* ================================================================
@@ -3745,64 +3949,28 @@ function renderPublicGallery(r) {
    ================================================================ */
 function renderPublicBlog(r) {
 
-  const e =
-    document.getElementById(
-      'public-blog-content'
-    );
-
+  const e = document.getElementById('public-blog-content');
   if (!e) return;
 
-  const a =
-    r.filter(
-      x =>
-        !x.Status ||
-        x.Status === 'publish' ||
-        x.Status === 'active'
-    );
+  const items = (r || []).filter(x => !x.Status || x.Status === 'publish' || x.Status === 'active');
+  if (!items.length) return renderEmpty(e, 'Belum ada artikel blog.');
 
-  if (!a.length) {
-
-    renderEmpty(
-      e,
-      'Belum ada artikel blog.'
-    );
-
-    return;
-  }
-
-  e.innerHTML =
-    a.map(
-      x =>
-        `<article class="bg-white p-6 rounded-3xl border shadow-sm">
-
-          <div class="text-xs text-blue-600 font-bold">
-            ${escapeHtml(
-              safeText(
-                x.PublishDate
-              )
-            )}
-          </div>
-
-          <h3 class="font-black text-xl mt-2">
-            ${escapeHtml(
-              safeText(
-                x.Title
-              )
-            )}
-          </h3>
-
-          <p class="text-sm text-slate-500 mt-3 whitespace-pre-line">
-            ${escapeHtml(
-              safeText(
-                x.Excerpt ||
-                x.Content
-              )
-            )}
-          </p>
-
-        </article>`
-    )
-    .join('');
+  e.innerHTML = items.map(item => {
+    const title = safeText(item.Title, 'Blog');
+    const body = safeText(item.Excerpt || item.Content);
+    const downloadText = safeText(item.Content || item.Excerpt || body);
+    const cover = safeUrl(item.Image_URL || item.Cover_URL || item.Thumbnail_URL);
+    const downloadUrl = safeUrl(item.Download_URL || item.File_URL || item.Attachment_URL || item.Document_URL);
+    const id = getPublicContentId(item, 'Blog');
+    return `<article class="bg-white p-6 rounded-3xl border shadow-sm public-content-card">
+      ${cover ? `<img src="${cover}" class="w-full h-56 object-cover rounded-2xl mb-5" loading="lazy" alt="${escapeHtml(title)}">` : ''}
+      <div class="text-xs text-blue-600 font-bold">${escapeHtml(safeText(item.PublishDate))}</div>
+      <h3 class="font-black text-xl mt-2">${escapeHtml(title)}</h3>
+      <p class="text-sm text-slate-500 mt-3 whitespace-pre-line">${escapeHtml(body)}</p>
+      ${buildPublicContentActions(item, 'Blog', id, downloadUrl, downloadText || title)}
+    </article>`;
+  }).join('');
+  updatePublicBookmarkButtons();
 }
 
 /* ================================================================
@@ -6209,6 +6377,8 @@ async function handleLogin() {
       if (pendingProtectedDocumentsAccess) {
         pendingProtectedDocumentsAccess = false;
         navigateTo('public', 'documents', true);
+      } else if (pendingContentAction) {
+        completePendingContentAction(pendingContentAction);
       } else if (pendingPublicProfileAccess && currentUser.Role !== 'SuperAdmin') {
         pendingPublicProfileAccess = false;
         navigateTo('public', 'profile', true);
@@ -6245,6 +6415,7 @@ function handleLogout() {
   authSessionToken = '';
   sessionStorage.removeItem('zexraps_auth_session');
   currentUser = null;
+  pendingContentAction = null;
   memoryCache = {};
   isFaceVerified = false;
   tempFaceData = { front: '', right: '', left: '', descriptor: [], descriptors: {} };
@@ -6940,6 +7111,7 @@ async function submitNewRecoveryData() {
 function requestPublicProfileLogin() {
   pendingPublicProfileAccess = true;
   pendingProtectedDocumentsAccess = false;
+  pendingContentAction = null;
   switchView('login');
 }
 
@@ -6948,6 +7120,7 @@ function requestProtectedDocuments() {
   if (!currentUser) {
     pendingProtectedDocumentsAccess = true;
     pendingPublicProfileAccess = false;
+    pendingContentAction = null;
     switchView(
       'login'
     );
@@ -7347,7 +7520,9 @@ async function refreshCurrentData(isSilent = false) {
             invalidateCache('Notifications'); 
         } else if (tab === 'activity') { 
             invalidateCache('System_Logs'); 
-        } else if (tab === 'download' || tab === 'documents') { 
+        } else if (tab === 'download') {
+            invalidateCache('System_Logs');
+        } else if (tab === 'documents') {
             invalidateCache('Documents'); 
         } else if (tab === 'bookmark' || tab === 'favorite') { 
             invalidateCache('Bookmarks'); 
