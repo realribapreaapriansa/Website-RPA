@@ -12,6 +12,7 @@ let currentGuest = (() => {
     }
 })();
 let authSessionToken = sessionStorage.getItem('zexraps_auth_session') || '';
+let pendingProtectedDocumentsAccess = false;
 let recoverySessionToken = '';
 let activeModule = 'Portfolio';
 let editingId = null;
@@ -2760,6 +2761,10 @@ function navigateTo(
    RENDER VIEW (BERSIH DARI BLOKIR)
    ================================================================ */
 function renderView(view, section) {
+  if (view === 'public' && String(section || '').toLowerCase() === 'career') {
+      section = 'portfolio';
+  }
+
   // Matikan sinkronisasi chat saat pindah halaman agar tidak memberatkan web
   if (typeof chatSyncTimer !== 'undefined' && chatSyncTimer) {
       clearInterval(chatSyncTimer);
@@ -2773,6 +2778,8 @@ function renderView(view, section) {
 
   const activeView = document.getElementById(`view-${view}`);
   if (activeView) activeView.classList.remove('hidden');
+  document.body.classList.toggle('public-view-active', view === 'public');
+  if (view !== 'public' && typeof togglePublicChat === 'function') togglePublicChat(false);
 
   if (view === 'public') {
       let sec = section || 'home';
@@ -2851,7 +2858,17 @@ function switchPublicSection(
   sec
 ) {
   const requestedSection = String(sec || 'home').toLowerCase();
-  const publicSection = requestedSection === 'contact' ? 'chat' : requestedSection;
+  if (requestedSection === 'contact' || requestedSection === 'chat') {
+      togglePublicChat(true);
+      return;
+  }
+
+  const publicSection = ['career', 'career_timeline', 'career timeline'].includes(requestedSection)
+      ? 'portfolio'
+      : ['cv', 'lamaran', 'cv dan lamaran kerja', 'cv & lamaran kerja'].includes(requestedSection)
+          ? 'documents'
+          : requestedSection;
+  if (publicSection !== 'documents') pendingProtectedDocumentsAccess = false;
   const mobileMenu = document.getElementById('mobile-menu');
   if (mobileMenu) mobileMenu.classList.add('hidden');
 
@@ -3279,7 +3296,7 @@ async function renderPublicContent(
     'Career_Timeline',
     'Gallery',
     'Blog',
-    'Documents',
+    ...(currentUser ? ['Documents'] : []),
     'Contact'
   ];
 
@@ -3323,6 +3340,12 @@ async function renderPublicContent(
               <p class="font-bold text-lg tracking-wide text-slate-600">Memuat Data...</p>
           </div>
       `;
+  }
+
+  // Dokumen CV/lamaran hanya diminta dari server setelah sesi login tersedia.
+  if (priority === 'Documents' && !currentUser) {
+    renderPublicDocuments([]);
+    return;
   }
 
   // 2. Tarik Data Prioritas (Menu yang Sedang Diklik)
@@ -3737,7 +3760,7 @@ function renderPublicDocuments(r) {
   if (!e) return;
 
   const rows =
-    r.filter(
+    (currentUser ? r : []).filter(
       x =>
         !x.Status ||
         x.Status === 'publish' ||
@@ -3781,8 +3804,7 @@ function renderPublicDocuments(r) {
           </h3>
 
           <p class="text-sm text-blue-100 mt-2">
-            Dokumen ini dilindungi.
-            Login sebagai Visitor dan konfirmasi verifikasi wajah sebelum membukanya.
+            Login terlebih dahulu, lalu selesaikan verifikasi wajah untuk membuka CV dan dokumen lamaran kerja.
           </p>
 
           <button
@@ -3869,16 +3891,41 @@ function renderPublicDocuments(r) {
 /* ================================================================
    MENU CONTACT PUBLIK (MENJADI APLIKASI LIVE CHAT)
    ================================================================ */
+function togglePublicChat(forceOpen) {
+    const panel = document.getElementById('public-chat-panel');
+    const fab = document.getElementById('public-chat-fab');
+    if (!panel || !fab) return;
+
+    const shouldOpen = typeof forceOpen === 'boolean'
+        ? forceOpen
+        : panel.classList.contains('hidden');
+    panel.classList.toggle('hidden', !shouldOpen);
+    panel.setAttribute('aria-hidden', String(!shouldOpen));
+    fab.setAttribute('aria-expanded', String(shouldOpen));
+    fab.setAttribute('aria-label', shouldOpen ? 'Tutup Chat' : 'Buka Chat');
+    fab.setAttribute('title', shouldOpen ? 'Tutup Chat' : 'Chat');
+    fab.innerHTML = shouldOpen
+        ? '<i class="fas fa-xmark" aria-hidden="true"></i>'
+        : '<i class="fas fa-comments" aria-hidden="true"></i>';
+
+    if (shouldOpen) {
+        renderPublicContact([]);
+    } else if (chatSyncTimer) {
+        clearInterval(chatSyncTimer);
+        chatSyncTimer = null;
+    }
+}
+
 function renderPublicContact(r) {
-    const e = document.getElementById('public-chat-content') || document.getElementById('public-contact-content');
+    const e = document.getElementById('public-chat-panel-content') || document.getElementById('public-chat-content') || document.getElementById('public-contact-content');
     if (!e) return;
 
     if (!getChatIdentity()) {
-        e.innerHTML = `<div class="bg-white p-10 md:p-16 rounded-3xl border text-center shadow-sm max-w-3xl mx-auto animate-fade-in my-8"><i class="fas fa-comments text-6xl text-emerald-500 mb-5"></i><h2 class="text-2xl md:text-3xl font-black mb-3 text-slate-800">Live Chat Tersedia</h2><p class="text-slate-500 mb-8 max-w-md mx-auto">Isi buku tamu terlebih dahulu untuk mulai menggunakan chat publik.</p><button onclick="navigateTo('attendance')" class="bg-emerald-500 hover:bg-emerald-600 text-white px-8 py-3.5 rounded-full font-bold shadow-xl shadow-emerald-500/30 transition-transform hover:-translate-y-1">Isi Buku Tamu</button></div>`;
+        e.innerHTML = `<div class="public-chat-prompt"><i class="fas fa-comments text-5xl text-emerald-500 mb-4"></i><h2 class="text-xl font-black mb-2 text-slate-800">Chat Publik</h2><p class="text-sm text-slate-500 mb-5">Isi buku tamu terlebih dahulu untuk mulai menggunakan chat.</p><button onclick="navigateTo('attendance')" class="bg-emerald-500 hover:bg-emerald-600 text-white px-5 py-3 rounded-xl font-bold text-sm shadow-lg">Isi Buku Tamu</button></div>`;
         return;
     }
     
-    e.innerHTML = `<div class="w-full max-w-5xl mx-auto my-4">${buildChatUI('public')}</div>`;
+    e.innerHTML = `<div class="w-full h-full min-h-0">${buildChatUI('public')}</div>`;
     activeChatRoom = 'Global';
     switchChatRoom('Global');
     if (typeof chatSyncTimer !== 'undefined' && chatSyncTimer) clearInterval(chatSyncTimer);
@@ -3889,140 +3936,47 @@ function renderPublicContact(r) {
    DYNAMIC MENU
    ================================================================ */
 async function renderDynamicMenu() {
+  const res = await getCachedData('Dynamic_Menu');
+  const rows = (res.data || [])
+    .filter(x => !x.Status || x.Status === 'publish' || x.Status === 'active')
+    .sort((a, b) => Number(a.Position || 0) - Number(b.Position || 0));
 
-  const res =
-    await getCachedData(
-      'Dynamic_Menu'
-    );
+  const desktop = document.getElementById('public-desktop-menu');
+  const mobile = document.getElementById('mobile-menu');
+  if (!desktop || !mobile) return;
 
-  const rows =
-    (res.data || [])
-    .filter(
-      x =>
-        !x.Status ||
-        x.Status === 'publish' ||
-        x.Status === 'active'
-    )
-    .filter(x => {
-      const section = String(x.Section || '').trim().toLowerCase().replace(/[\s_]+/g, '');
-      const label = String(x.Label || '').trim().toLowerCase();
-      return !['profile', 'profil'].includes(section) && !['profile', 'profil'].includes(label);
-    })
-    .sort(
-      (a, b) =>
-        Number(
-          a.Position || 0
-        ) -
-        Number(
-          b.Position || 0
-        )
-    );
+  const coreItems = [
+    { key: 'home', label: 'Home', icon: 'fa-house' },
+    { key: 'portfolio', label: 'Portfolio dan Career', icon: 'fa-briefcase' },
+    { key: 'documents', label: 'CV & Lamaran Kerja', icon: 'fa-file-lines' },
+    { key: 'gallery', label: 'Gallery', icon: 'fa-images' },
+    { key: 'blog', label: 'Blog', icon: 'fa-newspaper' }
+  ];
+  const coreKeys = new Set(coreItems.map(item => item.key));
+  const excludedKeys = new Set(['career', 'careertimeline', 'chat', 'contact', 'profile', 'profil', 'cv', 'cvlamaran', 'cvdanlamarankerja', 'cv&lamarankerja', 'lamaran']);
+  const customItems = rows.map(row => {
+    const rawSection = String(row.Section || '').trim();
+    const key = rawSection.toLowerCase().replace(/[\s_]+/g, '');
+    const label = safeText(row.Label, rawSection || 'Menu');
+    const url = safeUrl(row.URL);
+    if (!key || excludedKeys.has(key) || coreKeys.has(key)) return null;
+    return { key: rawSection.toLowerCase().replace(/_/g, ' '), label, icon: 'fa-link', url };
+  }).filter(Boolean);
 
-  if (!rows.length) {
-    return;
-  }
+  const items = [...coreItems, ...customItems];
+  const build = isMobile => items.map(item => {
+    const icon = `<i class="fas ${item.icon}" aria-hidden="true"></i>`;
+    const accessibilityLabel = escapeHtml(item.label);
+    const itemClass = isMobile ? 'mobile-menu-custom' : 'nav-btn nav-icon-btn';
+    if (item.url) {
+      return `<a href="${item.url}" target="_blank" rel="noopener" class="${itemClass}" aria-label="${accessibilityLabel}" title="${accessibilityLabel}">${icon}<span class="sr-only">${accessibilityLabel}</span></a>`;
+    }
+    return `<button onclick="switchPublicSection(this.dataset.sec)" data-sec="${escapeHtml(item.key)}" aria-label="${accessibilityLabel}" title="${accessibilityLabel}" class="${itemClass}">${icon}<span class="sr-only">${accessibilityLabel}</span></button>`;
+  }).join('');
 
-  const desktop =
-    document.getElementById(
-      'public-desktop-menu'
-    );
-
-  const mobile =
-    document.getElementById(
-      'mobile-menu'
-    );
-
-  const build =
-    isMobile =>
-
-      rows
-        .map(
-          x => {
-            const section =
-              safeText(
-                x.Section,
-                'home'
-              )
-              .toLowerCase()
-              .replace(
-                /_/g,
-                ' '
-              );
-
-            const key =
-              section === 'profile'
-                ? 'profil'
-                : section === 'contact'
-                  ? 'chat'
-                  : section;
-
-            const label =
-              key === 'contact'
-                ? 'Chat'
-                : safeText(x.Label);
-
-            const url =
-              safeUrl(
-                x.URL
-              );
-
-            if (url) {
-
-              return `
-                <a
-                  href="${url}"
-                  target="_blank"
-                  rel="noopener"
-                  class="${
-                    isMobile
-                      ? 'text-left font-bold text-slate-700 p-2 border-b'
-                      : 'nav-btn relative text-sm font-semibold text-slate-600 hover:text-blue-600 pb-1'
-                  }"
-                >
-                  ${
-                    isMobile
-                      ? '🔗 '
-                      : ''
-                  }
-                  ${escapeHtml(label)}
-                </a>
-              `;
-
-            }
-
-            return `
-              <button
-                onclick="switchPublicSection('${key}')"
-                data-sec="${escapeHtml(key)}"
-                class="${
-                  isMobile
-                    ? 'text-left font-bold text-slate-700 p-2 border-b'
-                    : 'nav-btn relative text-sm font-semibold text-slate-600 hover:text-blue-600 pb-1'
-                }"
-              >
-                ${
-                  isMobile
-                    ? '<i class="fas fa-link mr-2"></i>'
-                    : ''
-                }
-                ${escapeHtml(label)}
-              </button>
-            `;
-          }
-        )
-        .join('');
-
-  if (desktop) {
-    desktop.innerHTML =
-      build(false);
-  }
-
-  if (mobile) {
-    mobile.innerHTML =
-      build(true);
-  }
+  desktop.innerHTML = build(false);
+  mobile.innerHTML = build(true);
 }
-
 /* ================================================================
    PUBLIC BANNERS
    ================================================================ */
@@ -6194,7 +6148,10 @@ async function handleLogin() {
       }
       showToast("Login Berhasil! Selamat datang.", "success");
       
-      if (currentUser.Role === 'SuperAdmin') {
+      if (pendingProtectedDocumentsAccess) {
+        pendingProtectedDocumentsAccess = false;
+        navigateTo('public', 'documents', true);
+      } else if (currentUser.Role === 'SuperAdmin') {
         initAdminSidebar();
         switchView('admin');
         
@@ -6921,7 +6878,7 @@ async function submitNewRecoveryData() {
 function requestProtectedDocuments() {
 
   if (!currentUser) {
-
+    pendingProtectedDocumentsAccess = true;
     switchView(
       'login'
     );
@@ -6950,6 +6907,12 @@ async function confirmFaceVerification() {
 }
 
 async function openProtectedDocuments() {
+
+  if (!currentUser) {
+    pendingProtectedDocumentsAccess = true;
+    switchView('login');
+    return;
+  }
 
   const container =
     document.getElementById(
@@ -7655,25 +7618,6 @@ async function renderDynamicFooter() {
   } catch (error) {
     console.warn('Footer ditampilkan dengan data fallback:', error);
   }
-}
-
-/* ================================================================
-   PENGGANTIAN KONTAK PUBLIK MENJADI CHAT
-   ================================================================ */
-function renderPublicContact(r) {
-    const e = document.getElementById('public-chat-content') || document.getElementById('public-contact-content');
-    if (!e) return;
-
-    if (!getChatIdentity()) {
-        e.innerHTML = `<div class="bg-white p-10 md:p-16 rounded-3xl border text-center shadow-sm max-w-3xl mx-auto animate-fade-in"><i class="fas fa-comments text-6xl text-emerald-500 mb-5"></i><h2 class="text-2xl md:text-3xl font-black mb-3 text-slate-800">Live Chat Tersedia</h2><p class="text-slate-500 mb-8 max-w-md mx-auto">Isi buku tamu terlebih dahulu untuk mulai menggunakan chat publik.</p><button onclick="navigateTo('attendance')" class="bg-emerald-500 hover:bg-emerald-600 text-white px-8 py-3.5 rounded-full font-bold shadow-xl shadow-emerald-500/30 transition-transform hover:-translate-y-1">Isi Buku Tamu</button></div>`;
-        return;
-    }
-    
-    e.innerHTML = buildChatUI('public');
-    activeChatRoom = 'Global';
-    switchChatRoom('Global');
-    if (typeof chatSyncTimer !== 'undefined') clearInterval(chatSyncTimer);
-    chatSyncTimer = setInterval(syncChatMessages, 5000);
 }
 
 /* ================================================================

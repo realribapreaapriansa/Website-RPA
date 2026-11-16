@@ -306,6 +306,236 @@ input[type=number] {
     }
 }
 
+/* Icon-only public navigation */
+.nav-icon-btn {
+    width: 44px;
+    height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 12px;
+    color: #475569;
+    font-size: 1rem;
+    transition: color .18s ease, background-color .18s ease, transform .18s ease;
+}
+
+.nav-icon-btn:hover,
+.nav-icon-btn:focus-visible {
+    color: #2563eb;
+    background: #eff6ff;
+    outline: none;
+}
+
+.nav-icon-btn:active { transform: scale(.96); }
+.nav-icon-btn.active { color: #2563eb; background: #eff6ff; }
+.public-portal-cta { min-width: 44px; min-height: 44px; font-size: 1rem; }
+
+.mobile-menu-grid:not(.hidden) {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(44px, 1fr));
+    justify-items: center;
+    gap: 8px;
+}
+
+.mobile-menu-grid button {
+    width: 48px;
+    height: 48px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    background: #f8fafc;
+    color: #475569;
+    font-size: 1.05rem;
+}
+
+.mobile-menu-grid button:focus-visible,
+.mobile-menu-grid button:hover { color: #2563eb; background: #eff6ff; outline: none; }
+
+.mobile-menu-grid .mobile-menu-custom {
+    width: 48px;
+    height: 48px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #e2e8f0;
+    border-radius: 14px;
+    background: #f8fafc;
+    color: #475569;
+    font-size: 1.05rem;
+}
+
+.mobile-menu-grid .mobile-menu-custom:hover,
+.mobile-menu-grid .mobile-menu-custom:focus-visible { color: #2563eb; background: #eff6ff; outline: none; }
+
+.footer-icon-nav {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.footer-nav-icon {
+    width: 44px;
+    height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(148, 163, 184, .22);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, .06);
+    color: #cbd5e1;
+    font-size: 1rem;
+    cursor: pointer;
+    transition: color .18s ease, background-color .18s ease, border-color .18s ease;
+}
+
+.footer-nav-icon:hover,
+.footer-nav-icon:focus-visible {
+    color: #67e8f9;
+    background: rgba(14, 165, 233, .12);
+    border-color: rgba(103, 232, 249, .35);
+    outline: none;
+}
+
+/* Floating public chat, with a 56px touch target for phones */
+.public-chat-fab {
+    position: fixed;
+    z-index: 80;
+    right: max(16px, env(safe-area-inset-right));
+    bottom: max(16px, env(safe-area-inset-bottom));
+    width: 56px;
+    height: 56px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 0;
+    border-radius: 50%;
+    background: #10b981;
+    color: #fff;
+    font-size: 1.35rem;
+    box-shadow: 0 10px 28px rgba(5, 150, 105, .34);
+    cursor: pointer;
+    transition: transform .18s ease, background-color .18s ease, box-shadow .18s ease;
+}
+
+.public-chat-fab:hover,
+.public-chat-fab:focus-visible {
+    background: #059669;
+    box-shadow: 0 12px 32px rgba(5, 150, 105, .42);
+    outline: 3px solid rgba(16, 185, 129, .25);
+    outline-offset: 3px;
+}
+
+.public-chat-fab:active { transform: scale(.95); }
+.public-chat-fab[aria-expanded="true"] { background: #0f172a; }
+body:not(.public-view-active) #public-chat-panel,
+body:not(.public-view-active) #public-chat-fab { display: none !important; }
+
+.public-chat-panel {
+    position: fixed;
+    z-index: 79;
+    right: max(16px, env(safe-area-inset-right));
+    bottom: calc(84px + env(safe-area-inset-bottom));
+    width: min(420px, calc(100vw - 32px));
+    height: min(620px, calc(100dvh - 112px - env(safe-area-inset-bottom)));
+    min-height: 280px;
+}
+
+.public-chat-panel-shell {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid #e2e8f0;
+    border-radius: 20px;
+    background: #fff;
+    box-shadow: 0 24px 64px rgba(15, 23, 42, .24);
+}
+
+.public-chat-panel-header {
+    min-height: 68px;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    border-bottom: 1px solid #e2e8f0;
+    background: #fff;
+}
+
+.public-chat-close {
+    width: 40px;
+    height: 40px;
+    flex: 0 0 40px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #e2e8f0;
+    border-radius: 12px;
+    background: #f8fafc;
+    color: #64748b;
+    font-size: 1.1rem;
+}
+
+.public-chat-panel-content {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow: auto;
+    padding: 12px;
+    background: #f8fafc;
+}
+
+.public-chat-panel-content > .public-chat-prompt {
+    min-height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 24px 18px;
+    border: 1px solid #e2e8f0;
+    border-radius: 16px;
+    background: #fff;
+    text-align: center;
+}
+
+.public-chat-panel-content .chat-layout {
+    width: 100%;
+    height: 100% !important;
+    min-height: 0 !important;
+    margin: 0;
+    border-radius: 14px;
+}
+
+.public-chat-panel-content .chat-layout .chat-sidebar { min-width: 0; }
+
+@media (max-width: 767px) {
+    .public-chat-fab {
+        right: max(12px, env(safe-area-inset-right));
+        bottom: max(16px, env(safe-area-inset-bottom));
+        width: 56px;
+        height: 56px;
+    }
+
+    .public-chat-panel {
+        right: max(12px, env(safe-area-inset-right));
+        bottom: calc(84px + env(safe-area-inset-bottom));
+        width: calc(100vw - 24px);
+        height: min(560px, calc(100dvh - 108px - env(safe-area-inset-bottom)));
+        min-height: 260px;
+    }
+
+    .public-chat-panel-shell { border-radius: 18px; }
+    .public-chat-panel-content { padding: 8px; }
+}
+
+@media (max-height: 520px) {
+    .public-chat-panel { height: calc(100dvh - 100px - env(safe-area-inset-bottom)); }
+}
+
 @media (prefers-reduced-motion: reduce) {
     .animate-portal-enter {
         animation: none;

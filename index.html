@@ -250,45 +250,64 @@
          <span class="site-name text-lg sm:text-xl font-extrabold tracking-tight text-slate-900 hidden sm:block">Riba Prea Apriansa</span>
       </div>
 
-      <nav id="public-desktop-menu" class="hidden md:flex gap-6 relative">
-        <button onclick="switchPublicSection('home')" class="nav-btn active relative text-sm font-semibold text-slate-600 hover:text-blue-600 pb-1" data-sec="home">Home</button>
-        <button onclick="switchPublicSection('portfolio')" class="nav-btn relative text-sm font-semibold text-slate-600 hover:text-blue-600 pb-1" data-sec="portfolio">Portfolio</button>
-        <button onclick="switchPublicSection('career')" class="nav-btn relative text-sm font-semibold text-slate-600 hover:text-blue-600 pb-1" data-sec="career">Career</button>
-        <button onclick="switchPublicSection('gallery')" class="nav-btn relative text-sm font-semibold text-slate-600 hover:text-blue-600 pb-1" data-sec="gallery">Gallery</button>
-        <button onclick="switchPublicSection('blog')" class="nav-btn relative text-sm font-semibold text-slate-600 hover:text-blue-600 pb-1" data-sec="blog">Blog</button>
-        <button onclick="switchPublicSection('chat')" class="nav-btn relative text-sm font-semibold text-slate-600 hover:text-blue-600 pb-1" data-sec="chat">Chat</button>
+      <nav id="public-desktop-menu" class="hidden md:flex items-center gap-2 relative" aria-label="Navigasi utama">
+        <button onclick="switchPublicSection('home')" class="nav-btn nav-icon-btn active relative" data-sec="home" aria-label="Home" title="Home"><i class="fas fa-house"></i><span class="sr-only">Home</span></button>
+        <button onclick="switchPublicSection('portfolio')" class="nav-btn nav-icon-btn relative" data-sec="portfolio" aria-label="Portfolio dan Career" title="Portfolio dan Career"><i class="fas fa-briefcase"></i><span class="sr-only">Portfolio dan Career</span></button>
+        <button onclick="switchPublicSection('documents')" class="nav-btn nav-icon-btn relative" data-sec="documents" aria-label="CV dan Lamaran Kerja" title="CV &amp; Lamaran Kerja"><i class="fas fa-file-lines"></i><span class="sr-only">CV dan Lamaran Kerja</span></button>
+        <button onclick="switchPublicSection('gallery')" class="nav-btn nav-icon-btn relative" data-sec="gallery" aria-label="Gallery" title="Gallery"><i class="fas fa-images"></i><span class="sr-only">Gallery</span></button>
+        <button onclick="switchPublicSection('blog')" class="nav-btn nav-icon-btn relative" data-sec="blog" aria-label="Blog" title="Blog"><i class="fas fa-newspaper"></i><span class="sr-only">Blog</span></button>
       </nav>
 
       <div class="flex items-center gap-2 sm:gap-3">
          <button onclick="refreshManual(this)" class="flex shrink-0 items-center justify-center h-10 w-10 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 rounded-xl transition-colors font-bold shadow-sm" title="Refresh Data"><i class="fas fa-sync-alt"></i></button>
          <button onclick="openHelpCenter()" class="flex shrink-0 items-center justify-center h-10 w-10 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-xl transition-colors font-bold"><i class="fas fa-question"></i></button>
-         <button onclick="switchView('login')" aria-label="Buka Portal Akses" title="Portal Akses" class="public-portal-cta inline-flex items-center justify-center gap-2 px-3 sm:px-5 py-2.5 rounded-xl font-extrabold text-xs sm:text-sm"><i class="fas fa-arrow-right-to-bracket"></i><span class="hidden sm:inline">Portal Akses</span><span class="sm:hidden">Masuk</span></button>
-         <button onclick="document.getElementById('mobile-menu').classList.toggle('hidden')" class="md:hidden p-2 text-slate-600 bg-slate-100 rounded-lg">☰</button>
+         <button onclick="switchView('login')" aria-label="Portal Akses" title="Portal Akses" class="public-portal-cta inline-flex items-center justify-center h-10 w-10 rounded-xl"><i class="fas fa-arrow-right-to-bracket" aria-hidden="true"></i></button>
+         <button onclick="document.getElementById('mobile-menu').classList.toggle('hidden')" aria-label="Buka menu" title="Buka menu" class="md:hidden h-10 w-10 flex items-center justify-center text-slate-600 bg-slate-100 rounded-lg"><i class="fas fa-bars" aria-hidden="true"></i></button>
       </div>
     </header>
 
     <div id="public-banner-slot" class="public-banner-wrap hidden"></div>
 
-    <div id="mobile-menu" class="hidden absolute top-[72px] left-0 w-full bg-white border-b shadow-lg z-40 flex flex-col p-4 space-y-2 md:hidden">
-        <button onclick="switchPublicSection('home'); this.parentElement.classList.add('hidden')" class="text-left font-bold text-slate-700 p-2 border-b">🏠 Home</button>
-        <button onclick="switchPublicSection('portfolio'); this.parentElement.classList.add('hidden')" class="text-left font-bold text-slate-700 p-2 border-b">📁 Portfolio</button>
-        <button onclick="switchPublicSection('career'); this.parentElement.classList.add('hidden')" class="text-left font-bold text-slate-700 p-2 border-b">📄 Career Center</button>
-        <button onclick="switchPublicSection('gallery'); this.parentElement.classList.add('hidden')" class="text-left font-bold text-slate-700 p-2 border-b">🖼️ Gallery</button>
-        <button onclick="switchPublicSection('blog'); this.parentElement.classList.add('hidden')" class="text-left font-bold text-slate-700 p-2 border-b">📝 Blog</button>
-        <button onclick="switchPublicSection('chat'); this.parentElement.classList.add('hidden')" class="text-left font-bold text-slate-700 p-2"><i class="fas fa-comments w-6 text-emerald-600"></i> Chat</button>
+    <div id="mobile-menu" class="mobile-menu-grid hidden absolute top-[72px] left-0 w-full bg-white border-b shadow-lg z-40 p-4 md:hidden" aria-label="Navigasi utama">
+        <button onclick="switchPublicSection('home')" aria-label="Home" title="Home"><i class="fas fa-house"></i><span class="sr-only">Home</span></button>
+        <button onclick="switchPublicSection('portfolio')" aria-label="Portfolio dan Career" title="Portfolio dan Career"><i class="fas fa-briefcase"></i><span class="sr-only">Portfolio dan Career</span></button>
+        <button onclick="switchPublicSection('documents')" aria-label="CV dan Lamaran Kerja" title="CV &amp; Lamaran Kerja"><i class="fas fa-file-lines"></i><span class="sr-only">CV dan Lamaran Kerja</span></button>
+        <button onclick="switchPublicSection('gallery')" aria-label="Gallery" title="Gallery"><i class="fas fa-images"></i><span class="sr-only">Gallery</span></button>
+        <button onclick="switchPublicSection('blog')" aria-label="Blog" title="Blog"><i class="fas fa-newspaper"></i><span class="sr-only">Blog</span></button>
     </div>
 
     <!-- REVISI: flex-1 menjamin sisa ruang terisi agar footer tidak naik saat main kosong -->
     <main class="flex-1 w-full animate-fade-in flex flex-col justify-start">
        <section id="pub-sec-home" class="pub-sec w-full max-w-6xl mx-auto p-6 md:p-12"><div id="public-home-content" class="empty-state bg-white rounded-3xl border shadow-sm">Memuat konten Home...</div></section>
-       <section id="pub-sec-portfolio" class="pub-sec hidden w-full max-w-6xl mx-auto p-6 md:p-12 space-y-6"><div class="flex justify-between items-end mb-6"><h2 class="text-2xl font-black text-slate-900">Memuat Portfolio...</h2></div><div id="public-portfolio-list" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"></div></section>
-       <section id="pub-sec-career" class="pub-sec hidden w-full max-w-5xl mx-auto p-6 md:p-12"><div id="public-career-content" class="empty-state bg-white rounded-3xl border shadow-sm">Memuat Career...</div></section>
+       <section id="pub-sec-portfolio" class="pub-sec hidden w-full max-w-6xl mx-auto p-6 md:p-12 space-y-6">
+          <div class="flex justify-between items-end mb-6"><h2 class="text-2xl font-black text-slate-900">Portfolio</h2></div>
+          <div id="public-portfolio-list" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+          <section class="mt-12" aria-labelledby="public-career-heading">
+             <div class="flex items-center gap-3 mb-5"><span class="w-11 h-11 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center"><i class="fas fa-briefcase"></i></span><h2 id="public-career-heading" class="text-2xl font-black text-slate-900">Career</h2></div>
+             <div id="public-career-content" class="empty-state bg-white rounded-3xl border shadow-sm">Memuat Career...</div>
+          </section>
+       </section>
        <section id="pub-sec-gallery" class="pub-sec hidden w-full max-w-6xl mx-auto p-6 md:p-12"><div id="public-gallery-content" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">Memuat Gallery...</div></section>
        <section id="pub-sec-blog" class="pub-sec hidden w-full max-w-6xl mx-auto p-6 md:p-12"><div id="public-blog-content" class="grid grid-cols-1 md:grid-cols-2 gap-6">Memuat Blog...</div></section>
-       <section id="pub-sec-documents" class="pub-sec hidden w-full max-w-6xl mx-auto p-6 md:p-12"><div id="public-documents-content" class="grid grid-cols-1 md:grid-cols-2 gap-5">Memuat Dokumen...</div></section>
-       <section id="pub-sec-chat" class="pub-sec hidden w-full max-w-6xl mx-auto p-6 md:p-12"><div id="public-chat-content" class="empty-state bg-white rounded-3xl border shadow-sm">Memuat Chat...</div></section>
+       <section id="pub-sec-documents" class="pub-sec hidden w-full max-w-6xl mx-auto p-6 md:p-12">
+          <div class="mb-6"><h2 class="text-2xl font-black text-slate-900">CV &amp; Lamaran Kerja</h2><p class="text-sm text-slate-500 mt-2">Akses dokumen profesional setelah login.</p></div>
+          <div id="public-documents-content" class="grid grid-cols-1 md:grid-cols-2 gap-5">Memuat Dokumen...</div>
+       </section>
+       <section id="pub-sec-chat" class="pub-sec hidden w-full max-w-6xl mx-auto p-6 md:p-12"><div id="public-chat-content" class="empty-state bg-white rounded-3xl border shadow-sm">Chat tersedia melalui tombol mengambang.</div></section>
     </main>
+
   </div>
+
+  <div id="public-chat-panel" class="public-chat-panel hidden" aria-hidden="true">
+     <div class="public-chat-panel-shell">
+        <div class="public-chat-panel-header">
+           <div class="flex items-center gap-3 min-w-0"><span class="w-10 h-10 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0"><i class="fas fa-comments"></i></span><div class="min-w-0"><h2 class="font-black text-sm text-slate-900">Chat</h2><p class="text-[11px] text-slate-500">Hubungi Riba Prea Apriansa</p></div></div>
+           <button onclick="togglePublicChat(false)" aria-label="Tutup chat" title="Tutup chat" class="public-chat-close"><i class="fas fa-xmark"></i></button>
+        </div>
+        <div id="public-chat-panel-content" class="public-chat-panel-content"></div>
+     </div>
+  </div>
+  <button id="public-chat-fab" type="button" onclick="togglePublicChat()" aria-label="Buka Chat" aria-expanded="false" title="Chat" class="public-chat-fab"><i class="fas fa-comments" aria-hidden="true"></i></button>
 
 <!-- ================================================================= -->
   <!-- 2. LOGIN VIEW (PORTAL AKSES) BEBAS BUG LAYOUT                     -->
@@ -671,17 +690,18 @@
         </div>
         <div>
             <h4 class="text-white font-black mb-4 uppercase tracking-widest text-xs">Resources</h4>
-            <nav class="flex flex-col items-start gap-3">
-                <button onclick="switchPublicSection('home')" class="footer-nav-link">Home</button>
-                <button onclick="switchPublicSection('portfolio')" class="footer-nav-link">Portfolio</button>
-                <button onclick="switchPublicSection('career')" class="footer-nav-link">Career</button>
-                <button onclick="switchPublicSection('gallery')" class="footer-nav-link">Gallery</button>
-                <button onclick="switchPublicSection('blog')" class="footer-nav-link">Blog</button>
-                <button onclick="switchPublicSection('chat')" class="footer-nav-link">Chat</button>
-                <button onclick="openModal('privacy')" class="footer-nav-link">Privacy Policy</button>
-                <button onclick="openModal('terms')" class="footer-nav-link">Terms & Conditions</button>
-                <button onclick="openHelpCenter()" class="footer-nav-link">Help Center</button>
+            <nav class="footer-icon-nav" aria-label="Navigasi footer">
+                <button onclick="switchPublicSection('home')" class="footer-nav-icon" aria-label="Home" title="Home"><i class="fas fa-house"></i></button>
+                <button onclick="switchPublicSection('portfolio')" class="footer-nav-icon" aria-label="Portfolio dan Career" title="Portfolio dan Career"><i class="fas fa-briefcase"></i></button>
+                <button onclick="switchPublicSection('documents')" class="footer-nav-icon" aria-label="CV dan Lamaran Kerja" title="CV &amp; Lamaran Kerja"><i class="fas fa-file-lines"></i></button>
+                <button onclick="switchPublicSection('gallery')" class="footer-nav-icon" aria-label="Gallery" title="Gallery"><i class="fas fa-images"></i></button>
+                <button onclick="switchPublicSection('blog')" class="footer-nav-icon" aria-label="Blog" title="Blog"><i class="fas fa-newspaper"></i></button>
             </nav>
+            <div class="mt-5 flex flex-col items-start gap-3">
+                <button onclick="openModal('privacy')" class="footer-nav-link">Privacy Policy</button>
+                <button onclick="openModal('terms')" class="footer-nav-link">Terms &amp; Conditions</button>
+                <button onclick="openHelpCenter()" class="footer-nav-link">Help Center</button>
+            </div>
         </div>
         <div>
             <h4 class="text-white font-black mb-4 uppercase tracking-widest text-xs">Follow</h4>
