@@ -66,6 +66,87 @@ const menuGroups = [
   ]}
 ];
 
+const FOOTER_SOCIAL_LINKS = [
+  { key: 'blogger', label: 'Blogger', iconClass: 'fab fa-blogger-b', brandColor: '#ff5722' },
+  { key: 'facebook', label: 'Facebook', contactKey: 'Facebook_URL', iconClass: 'fab fa-facebook-f', brandColor: '#1877f2' },
+  { key: 'github', label: 'GitHub', contactKey: 'GitHub_URL', iconClass: 'fab fa-github', brandColor: '#181717' },
+  { key: 'instagram', label: 'Instagram', contactKey: 'Instagram_URL', iconClass: 'fab fa-instagram', brandColor: '#e4405f' },
+  { key: 'lemon8', label: 'Lemon8', iconClass: 'fas fa-lemon', brandColor: '#111111' },
+  { key: 'linkedin', label: 'LinkedIn', contactKey: 'LinkedIn_URL', iconClass: 'fab fa-linkedin-in', brandColor: '#0a66c2' },
+  { key: 'linktree', label: 'Linktree', iconClass: 'fas fa-link', brandColor: '#43e55e' },
+  { key: 'telegram_channel', label: 'Saluran Telegram', iconClass: 'fab fa-telegram', brandColor: '#26a5e4' },
+  { key: 'threads', label: 'Threads', iconClass: 'fab fa-threads', brandColor: '#111111' },
+  { key: 'tiktok', label: 'TikTok', iconClass: 'fab fa-tiktok', brandColor: '#010101' },
+  { key: 'vk', label: 'VK', iconClass: 'fab fa-vk', brandColor: '#0077ff' },
+  { key: 'whatsapp_channel', label: 'Saluran WhatsApp', iconClass: 'fab fa-whatsapp', brandColor: '#25d366' },
+  { key: 'x', label: 'X', iconClass: 'fab fa-x-twitter', brandColor: '#111111' },
+  { key: 'youtube', label: 'YouTube', contactKey: 'YouTube_URL', iconClass: 'fab fa-youtube', brandColor: '#ff0033' }
+];
+
+function getFooterSocialKey(section) {
+  const value = String(section || '').trim().toLowerCase();
+  const prefix = 'footer-social:';
+  return value.startsWith(prefix) ? value.slice(prefix.length).trim() : '';
+}
+
+function getFooterCooperationParts(section) {
+  const match = String(section || '').trim().toLowerCase().match(/^footer-cooperation:([^:]+):(mou|website)$/);
+  return match ? { key: match[1], type: match[2] } : null;
+}
+
+function getFooterProductKey(section) {
+  const value = String(section || '').trim().toLowerCase();
+  const prefix = 'footer-product:';
+  return value.startsWith(prefix) ? value.slice(prefix.length).trim() : '';
+}
+
+function isFooterMenuSection(section) {
+  return Boolean(
+    getFooterSocialKey(section) ||
+    getFooterCooperationParts(section) ||
+    getFooterProductKey(section)
+  );
+}
+
+function isFooterRecordActive(record) {
+  const status = String(record?.Status || '').trim().toLowerCase();
+  return !status || status === 'publish' || status === 'active';
+}
+
+function makeFooterCompanyKey(name) {
+  return String(name || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+function getFooterCooperationGroups(rows = []) {
+  const groups = new Map();
+  (rows || []).forEach(row => {
+    const parts = getFooterCooperationParts(row.Section);
+    if (!parts || !isFooterRecordActive(row)) return;
+    const url = safeUrl(row.URL);
+    if (!url) return;
+
+    const group = groups.get(parts.key) || {
+      key: parts.key,
+      name: safeText(row.Label, 'Perusahaan'),
+      logoUrl: safeUrl(row.Icon),
+      position: Number(row.Position || 0),
+      mouUrl: '',
+      websiteUrl: ''
+    };
+    group.name = safeText(row.Label, group.name);
+    group.logoUrl = safeUrl(row.Icon) || group.logoUrl;
+    group.position = Math.min(group.position || Number(row.Position || 0), Number(row.Position || 0));
+    group[parts.type === 'mou' ? 'mouUrl' : 'websiteUrl'] = url;
+    groups.set(parts.key, group);
+  });
+  return Array.from(groups.values()).sort((a, b) => a.position - b.position);
+}
+
 let pendingRequests = {};
 let loaderCount = 0;
 let cacheTimestamps = {}; // Tambahan untuk anti-stuck realtime
@@ -2341,20 +2422,32 @@ function openModalInput(row = null) {
   const body = document.getElementById('modal-body');
   body.innerHTML = '';
 
+  if (['Gallery', 'Blog'].includes(activeModule) && !headers.some(header => /video/i.test(header))) {
+    body.innerHTML = `<div class="md:col-span-2 rounded-2xl border border-violet-200 bg-violet-50 p-4 text-sm text-violet-800"><p class="font-bold"><i class="fas fa-video mr-2"></i>Aktifkan kolom Video_URL</p><p class="mt-1 text-xs leading-relaxed">Tambahkan header <b>Video_URL</b> pada sheet ${escapeHtml(activeModule)} agar tautan video bisa disimpan terpisah dari gambar. File video diunggah ke Drive/hosting; spreadsheet hanya menyimpan URL.</p></div>`;
+  }
+
   headers.forEach(col => {
     const label = col.replace(/_/g, ' ');
     
     // Deteksi Format Berdasarkan Nama Kolom Google Sheets
-    const isImage = /url|image|cover|pic|logo|favicon|foto|avatar/i.test(col);
-    const isFile = /file|document|pdf|cv|berkas|arsip|link/i.test(col);
-    const isMedia = isImage || isFile;
+    const isVideo = /video|movie|clip/i.test(col);
+    const isImage = !isVideo && /image|cover|thumbnail|pic|logo|favicon|foto|avatar/i.test(col);
+    const isFile = !isVideo && /file|document|pdf|cv|berkas|arsip|link/i.test(col);
+    const isMedia = isVideo || isImage || isFile;
     const long = /Description|Content|JSON|Value|About|Message|Subtitle/i.test(col);
 
     const v = row && row[col] != null ? String(row[col]) : '';
     const safe = escapeHtml(v);
     const span = isMedia || long ? 'md:col-span-2' : 'col-span-1';
 
-    if (isMedia) {
+    if (isVideo) {
+       body.innerHTML += `<div class="${span} bg-white p-6 rounded-3xl border border-slate-200 shadow-sm">
+         <label class="font-black text-slate-800 text-sm mb-3 flex items-center gap-2"><i class="fas fa-video text-violet-600"></i> Video URL: ${label}</label>
+         <p class="text-xs text-slate-500 leading-relaxed mb-4">Video disimpan di Drive/hosting dan spreadsheet menyimpan tautannya, sehingga ukuran file tidak dibatasi oleh sel Google Sheets. Atur izin tautan ke publik sebelum ditempel.</p>
+         <a href="https://drive.google.com/drive/my-drive" target="_blank" rel="noopener" class="inline-flex items-center gap-2 mb-4 bg-violet-50 text-violet-700 px-4 py-2.5 rounded-xl text-xs font-bold"><i class="fab fa-google-drive"></i> Unggah Video ke Drive</a>
+         <input type="text" id="inp-${col}" value="${safe}" oninput="autoConvertDriveLink(this)" placeholder="Tempel URL publik video (Drive, YouTube, Vimeo, atau MP4)" class="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold focus:border-violet-500 focus:bg-white outline-none transition-all">
+       </div>`;
+    } else if (isMedia) {
        // Tampilan Khusus Input Gambar / File / Link
        const bgIcon = isImage ? 'fa-image text-blue-500/10' : 'fa-folder-open text-emerald-500/10';
        const titleIcon = isImage ? 'fa-camera text-blue-500' : 'fa-link text-emerald-500';
@@ -2390,6 +2483,7 @@ function openModalInput(row = null) {
              <!-- Kolom Link Drive / Web -->
              <div class="w-full">
                  <input type="text" id="inp-${col}" value="${safe}" oninput="autoConvertDriveLink(this)" placeholder="https://drive.google.com/..." class="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl text-sm font-semibold focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-50 outline-none transition-all">
+                 ${isImage ? '<p class="mt-2 text-[11px] leading-relaxed text-slate-500">Untuk video berukuran besar, tambahkan kolom <b>Video_URL</b> pada sheet, unggah video ke Drive/hosting, lalu tempel tautan publik di kolom tersebut.</p>' : ''}
              </div>
            </div>
            
@@ -2613,6 +2707,9 @@ async function submitData() {
             renderPublicContent(false);
             renderPublicBanners();
             renderPublicPopup();
+            if (activeModule === 'Dynamic_Menu') {
+              await Promise.all([renderDynamicMenu(), renderDynamicFooter()]);
+            }
           }
       }, 1500);
     } else {
@@ -2739,7 +2836,6 @@ function renderView(view, section) {
   const activeView = document.getElementById(`view-${view}`);
   if (activeView) activeView.classList.remove('hidden');
   document.body.classList.toggle('public-view-active', view === 'public');
-  if (view !== 'public' && typeof togglePublicChat === 'function') togglePublicChat(false);
 
   if (view === 'public') {
       let sec = section || 'home';
@@ -2760,7 +2856,8 @@ function renderView(view, section) {
           btn.classList.toggle('active', btn.getAttribute('data-sec') === sec);
       });
       if (sec === 'profile') renderPublicProfile();
-      else renderPublicContent(false, sec);
+      else if (sec === 'chat') renderPublicContact([]);
+      else renderPublicContent(sec === 'portfolio', sec);
       
       // Munculkan footer dinamis di dashboard publik.
       if (typeof renderDynamicFooter === 'function') renderDynamicFooter();
@@ -2818,12 +2915,67 @@ function switchView(
   );
 }
 
+function togglePublicMenu(
+  forceOpen
+) {
+  const menu = document.getElementById('mobile-menu');
+  const trigger = document.getElementById('public-menu-toggle');
+  const icon = document.getElementById('public-menu-icon');
+  if (!menu || !trigger) return;
+
+  const isOpen = typeof forceOpen === 'boolean'
+    ? forceOpen
+    : menu.classList.contains('hidden');
+
+  menu.classList.toggle('hidden', !isOpen);
+  trigger.setAttribute('aria-expanded', String(isOpen));
+  trigger.setAttribute('aria-label', isOpen ? 'Tutup menu' : 'Buka menu');
+  if (icon) {
+    icon.classList.toggle('fa-bars', !isOpen);
+    icon.classList.toggle('fa-xmark', isOpen);
+  }
+}
+
+document.addEventListener('click', event => {
+  if (!(event.target instanceof Element)) return;
+
+  const clickedControl = event.target.closest('button:not(:disabled), a[href], [role="button"], [onclick]');
+  if (clickedControl) {
+    clickedControl.classList.remove('ui-click-feedback');
+    void clickedControl.offsetWidth;
+    clickedControl.classList.add('ui-click-feedback');
+    window.clearTimeout(clickedControl.uiClickFeedbackTimer);
+    clickedControl.uiClickFeedbackTimer = window.setTimeout(() => {
+      clickedControl.classList.remove('ui-click-feedback');
+    }, 380);
+  }
+
+  const menu = document.getElementById('mobile-menu');
+  if (!menu || menu.classList.contains('hidden')) return;
+  if (event.target.closest('#mobile-menu a[href]')) {
+    togglePublicMenu(false);
+    return;
+  }
+  if (event.target.closest('#mobile-menu, #public-menu-toggle')) return;
+  togglePublicMenu(false);
+});
+
+document.addEventListener('keydown', event => {
+  if (event.key !== 'Escape') return;
+  const menu = document.getElementById('mobile-menu');
+  if (menu && !menu.classList.contains('hidden')) {
+    togglePublicMenu(false);
+    document.getElementById('public-menu-toggle')?.focus();
+  }
+});
+
 function switchPublicSection(
   sec
 ) {
   const requestedSection = String(sec || 'home').toLowerCase();
   if (requestedSection === 'contact' || requestedSection === 'chat') {
-      togglePublicChat(true);
+      togglePublicMenu(false);
+      navigateTo('public', 'chat', true);
       return;
   }
 
@@ -2837,8 +2989,7 @@ function switchPublicSection(
   if (publicSection !== 'documents') pendingProtectedDocumentsAccess = false;
   if (publicSection !== 'profile') pendingPublicProfileAccess = false;
   if (!['blog', 'gallery'].includes(publicSection)) pendingContentAction = null;
-  const mobileMenu = document.getElementById('mobile-menu');
-  if (mobileMenu) mobileMenu.classList.add('hidden');
+  togglePublicMenu(false);
 
   navigateTo(
     'public',
@@ -3123,75 +3274,9 @@ function getFormattedDate() {
    PUBLIC PORTFOLIO
    ================================================================ */
 async function fetchPublicPortfolio() {
-
-  const res =
-    await getCachedData(
-      'Portfolio'
-    );
-
-  if (
-    res.status === 'success' &&
-    res.data.length > 0
-  ) {
-
-    const list =
-      document.getElementById(
-        'public-portfolio-list'
-      );
-
-    if (list) {
-
-      list.innerHTML = '';
-
-      res.data
-        .slice(0, 6)
-        .forEach(item => {
-
-          const imgSrc =
-            item.CoverImage_URL ||
-            item.ImageURL ||
-            '';
-
-          list.innerHTML +=
-            `
-            <div class="bg-white p-5 rounded-3xl border border-slate-100 shadow-sm hover:shadow-lg transition-shadow group flex flex-col h-full cursor-pointer animate-fade-in">
-
-              <div class="overflow-hidden rounded-2xl mb-4 bg-slate-100 h-48 flex items-center justify-center">
-
-                ${
-                  imgSrc
-                    ? `<img
-                        src="${imgSrc}"
-                        class="h-48 w-full object-cover group-hover:scale-105 transition-transform duration-500"
-                      >`
-                    : `<i class="fas fa-image text-slate-300 text-3xl"></i>`
-                }
-
-              </div>
-
-              <h4 class="font-extrabold text-base text-slate-900 mb-2">
-                ${
-                  item.Title_ID ||
-                  item.Title ||
-                  'Project'
-                }
-              </h4>
-
-              <p class="text-sm text-slate-500 line-clamp-2 flex-1">
-                ${
-                  item.Description_ID ||
-                  item.Description ||
-                  ''
-                }
-              </p>
-
-            </div>
-            `;
-        });
-    }
-  }
+  const result = await getCachedData('Portfolio', true);
+  renderPublicPortfolio(result?.data || []);
 }
-
 /* ================================================================
    SAFE HELPERS
    ================================================================ */
@@ -3335,6 +3420,9 @@ async function renderPublicContent(
 
   } catch(error) {
     console.warn('Gagal memuat section prioritas:', error);
+    if (priority === 'Portfolio' && targetContainer) {
+      targetContainer.innerHTML = `<div class="col-span-full rounded-3xl border border-rose-200 bg-rose-50 p-6 text-center text-rose-700"><p class="font-bold">Portfolio gagal dimuat.</p><button type="button" onclick="renderPublicContent(true, 'portfolio')" class="mt-3 inline-flex items-center gap-2 rounded-xl bg-white px-4 py-2 text-sm font-bold text-rose-700 shadow-sm"><i class="fas fa-rotate"></i> Coba Lagi</button></div>`;
+    }
   }
 
   // 3. Tarik Data Menu Lainnya di Latar Belakang (Tanpa Mengganggu Layar Utama)
@@ -3360,6 +3448,127 @@ async function renderPublicContent(
 /* ================================================================
    PUBLIC HOME (DENGAN STATISTIK KOMUNITAS BERDASARKAN TANGGAL)
    ================================================================ */
+let publicStatsSnapshot = { attendance: [], accounts: [] };
+
+function publicStatsDateKey(item) {
+  const rawValue = String(getWaktu(item) || '').trim();
+  if (!rawValue || rawValue.toLowerCase() === 'tanpa tanggal') return 'undated';
+
+  const iso = rawValue.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})/);
+  if (iso) return `${iso[1]}-${String(iso[2]).padStart(2, '0')}-${String(iso[3]).padStart(2, '0')}`;
+
+  const dmy = rawValue.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})/);
+  if (dmy) return `${dmy[3]}-${String(dmy[2]).padStart(2, '0')}-${String(dmy[1]).padStart(2, '0')}`;
+
+  const date = new Date(rawValue);
+  if (Number.isNaN(date.getTime())) return 'undated';
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+function publicStatsDateLabel(dateKey, long = false) {
+  if (dateKey === 'undated') return 'Tanpa tanggal';
+  const [year, month, day] = dateKey.split('-').map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return long
+    ? new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(date)
+    : `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`;
+}
+
+function buildPublicStatsDashboard(attendance, accounts) {
+  const grouped = new Map();
+  const addRows = (rows, series) => (rows || []).forEach(row => {
+    const dateKey = publicStatsDateKey(row);
+    if (!grouped.has(dateKey)) grouped.set(dateKey, { attendance: [], accounts: [] });
+    grouped.get(dateKey)[series].push(row);
+  });
+  addRows(attendance, 'attendance');
+  addRows(accounts, 'accounts');
+
+  const dates = [...grouped.keys()].sort((a, b) => {
+    if (a === 'undated') return 1;
+    if (b === 'undated') return -1;
+    return a.localeCompare(b);
+  });
+  if (!dates.length) return '<section class="public-stats-panel"><p class="text-sm text-slate-500">Belum ada statistik pengunjung.</p></section>';
+
+  const maximum = Math.max(1, ...dates.map(date => Math.max(grouped.get(date).attendance.length, grouped.get(date).accounts.length)));
+  const tickStep = Math.max(1, Math.ceil(maximum / 5));
+  const scaleMaximum = tickStep * 5;
+  const left = 58;
+  const top = 22;
+  const plotHeight = 210;
+  const bottom = top + plotHeight;
+  const groupWidth = 82;
+  const width = left + dates.length * groupWidth + 24;
+  const height = 316;
+  const ticks = Array.from({ length: 6 }, (_, index) => index * tickStep);
+
+  const grid = ticks.map(value => {
+    const y = bottom - (value / scaleMaximum) * plotHeight;
+    return `<line x1="${left}" y1="${y}" x2="${width - 12}" y2="${y}" class="public-chart-gridline"/><text x="${left - 10}" y="${y + 4}" class="public-chart-y-label" text-anchor="end">${value}</text>`;
+  }).join('');
+
+  const bars = dates.map((dateKey, index) => {
+    const values = grouped.get(dateKey);
+    const center = left + index * groupWidth + groupWidth / 2;
+    const barWidth = 22;
+    const gap = 5;
+    const attendanceHeight = (values.attendance.length / scaleMaximum) * plotHeight;
+    const accountHeight = (values.accounts.length / scaleMaximum) * plotHeight;
+    const attendanceY = bottom - attendanceHeight;
+    const accountY = bottom - accountHeight;
+    const dateAttr = escapeHtml(dateKey);
+    const label = publicStatsDateLabel(dateKey);
+    const keydown = "if(event.key==='Enter'||event.key===' '){event.preventDefault();showPublicStatsDetails(this.dataset.date)}";
+    return `<g class="public-chart-date-group">
+      <rect class="public-chart-bar public-chart-bar-attendance" x="${center - barWidth - gap / 2}" y="${attendanceY}" width="${barWidth}" height="${Math.max(0, attendanceHeight)}" rx="5" data-date="${dateAttr}" tabindex="0" role="button" aria-label="Buku Tamu, ${escapeHtml(label)}: ${values.attendance.length}" onclick="showPublicStatsDetails(this.dataset.date)" onkeydown="${keydown}"><title>Buku Tamu · ${escapeHtml(label)} · ${values.attendance.length}</title></rect>
+      <rect class="public-chart-bar public-chart-bar-accounts" x="${center + gap / 2}" y="${accountY}" width="${barWidth}" height="${Math.max(0, accountHeight)}" rx="5" data-date="${dateAttr}" tabindex="0" role="button" aria-label="Akun Terdaftar, ${escapeHtml(label)}: ${values.accounts.length}" onclick="showPublicStatsDetails(this.dataset.date)" onkeydown="${keydown}"><title>Akun Terdaftar · ${escapeHtml(label)} · ${values.accounts.length}</title></rect>
+      <text x="${center}" y="${bottom + 21}" class="public-chart-x-label" text-anchor="middle">${escapeHtml(label)}</text>
+    </g>`;
+  }).join('');
+
+  return `<section class="public-stats-panel mb-6" aria-labelledby="public-stats-heading">
+    <div class="public-stats-heading"><div><p class="text-xs font-bold uppercase tracking-wider text-blue-600">Grafik Batang</p><h2 id="public-stats-heading" class="text-xl font-black text-slate-900 mt-1">Statistik Pengunjung</h2><p class="text-xs text-slate-500 mt-1">Klik batang untuk melihat data pada tanggal tersebut.</p></div><i class="fas fa-chart-column text-blue-500 text-2xl" aria-hidden="true"></i></div>
+    <div class="public-chart-legend"><span><i class="public-chart-legend-dot public-chart-bar-attendance"></i>Buku Tamu</span><span><i class="public-chart-legend-dot public-chart-bar-accounts"></i>Registrasi Akun</span></div>
+    <div class="public-chart-scroll"><svg class="public-stats-chart" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="Grafik batang jumlah Buku Tamu dan Akun Terdaftar per tanggal">
+      ${grid}<line x1="${left}" y1="${top}" x2="${left}" y2="${bottom}" class="public-chart-axis"/><line x1="${left}" y1="${bottom}" x2="${width - 12}" y2="${bottom}" class="public-chart-axis"/>
+      <text x="15" y="${top + plotHeight / 2}" class="public-chart-axis-title" text-anchor="middle" transform="rotate(-90 15 ${top + plotHeight / 2})">Jumlah Data (skala otomatis)</text>
+      ${bars}<text x="${(left + width - 12) / 2}" y="${height - 8}" class="public-chart-axis-title" text-anchor="middle">Tanggal: Tgl / Bulan / Thn</text>
+    </svg></div>
+    <div id="public-stats-details" class="public-stats-details" aria-live="polite"><p class="text-sm text-slate-500">Pilih salah satu batang untuk membuka Riwayat Tamu dan Registrasi Akun pada tanggal tersebut.</p></div>
+  </section>`;
+}
+
+function renderPublicStatsItems(rows, kind) {
+  if (!rows.length) return `<p class="public-stats-empty">Tidak ada data ${kind === 'attendance' ? 'Buku Tamu' : 'Registrasi Akun'} pada tanggal ini.</p>`;
+  return rows.map(item => {
+    const name = safeText(item.Nama || item.FullName || item.Username, 'Anonim');
+    const age = item.Umur || item.Age ? `${item.Umur || item.Age} thn` : '';
+    const gender = item.Gender || item.Jenis_Kelamin || '';
+    const location = item.Negara || item.Country || item.Location || '';
+    const detail = kind === 'attendance'
+      ? (age || 'Pengunjung')
+      : ([age, gender, location].filter(Boolean).join(' · ') || 'Pengguna Baru');
+    const time = String(getWaktu(item) || '').match(/\b\d{1,2}:\d{2}(?::\d{2})?\b/)?.[0] || '';
+    return `<article class="public-stats-record"><div><p class="font-bold text-slate-800">${escapeHtml(name)}</p><p class="text-xs text-slate-500 mt-1">${escapeHtml(detail)}</p></div>${time ? `<time class="text-xs text-slate-400">${escapeHtml(time)}</time>` : ''}</article>`;
+  }).join('');
+}
+
+function showPublicStatsDetails(dateKey) {
+  const panel = document.getElementById('public-stats-details');
+  if (!panel) return;
+  const attendance = publicStatsSnapshot.attendance.filter(item => publicStatsDateKey(item) === dateKey);
+  const accounts = publicStatsSnapshot.accounts.filter(item => publicStatsDateKey(item) === dateKey);
+  const dateLabel = publicStatsDateLabel(dateKey, true);
+  panel.innerHTML = `<div class="public-stats-detail-heading"><div><h3 class="font-black text-slate-900">Detail ${escapeHtml(dateLabel)}</h3><p class="text-xs text-slate-500 mt-1">${attendance.length} tamu · ${accounts.length} registrasi akun</p></div><button type="button" class="public-stats-close" aria-label="Tutup detail" onclick="resetPublicStatsDetails()"><i class="fas fa-xmark"></i></button></div>
+    <div class="public-stats-detail-grid"><section><h4><i class="fas fa-book text-emerald-600"></i> Riwayat Tamu</h4>${renderPublicStatsItems(attendance, 'attendance')}</section><section><h4><i class="fas fa-user-plus text-blue-600"></i> Registrasi Akun</h4>${renderPublicStatsItems(accounts, 'accounts')}</section></div>`;
+}
+
+function resetPublicStatsDetails() {
+  const panel = document.getElementById('public-stats-details');
+  if (panel) panel.innerHTML = '<p class="text-sm text-slate-500">Pilih salah satu batang untuk membuka Riwayat Tamu dan Registrasi Akun pada tanggal tersebut.</p>';
+}
+
 async function renderPublicHome(r) {
   const e = document.getElementById('public-home-content');
   if (!e) return;
@@ -3368,32 +3577,29 @@ async function renderPublicHome(r) {
   if (!x) { renderEmpty(e, 'Belum ada konten Home.'); return; }
 
   const img = safeUrl(x.HeroImage_URL);
-  const htmlHero = `<div class="bg-white rounded-3xl p-8 md:p-14 shadow-sm border border-slate-200 flex flex-col md:flex-row items-center gap-10">${img ? `<img src="${img}" class="w-36 h-36 md:w-52 md:h-52 rounded-full object-cover shadow-xl border-4 border-white">` : ''}<div class="text-center md:text-left flex-1"><h1 class="text-3xl md:text-5xl font-black text-slate-900 leading-tight">${escapeHtml(safeText(x.Title))}</h1><p class="text-blue-600 font-bold mt-3">${escapeHtml(safeText(x.Subtitle))}</p><p class="text-slate-500 mt-4 max-w-2xl text-sm md:text-base leading-relaxed whitespace-pre-line">${escapeHtml(safeText(x.Description))}</p>${x.Action_Button ? `<button onclick="switchPublicSection('portfolio')" class="mt-7 bg-blue-600 text-white px-6 py-3 rounded-xl font-bold text-sm shadow-lg">${escapeHtml(x.Action_Button)}</button>` : ''}</div></div>`;
+  const htmlHero = `<div class="bg-white rounded-3xl p-8 md:p-14 shadow-sm border border-slate-200 flex flex-col md:flex-row items-center gap-10">${img ? `<img src="${img}" class="w-36 h-36 md:w-52 md:h-52 rounded-full object-cover shadow-xl border-4 border-white">` : ''}<div class="text-center md:text-left flex-1"><h1 class="text-3xl md:text-5xl font-black text-slate-900 leading-tight">${escapeHtml(safeText(x.Title))}</h1><p class="text-blue-600 font-bold mt-3">${escapeHtml(safeText(x.Subtitle))}</p><p class="text-slate-500 mt-4 max-w-2xl text-sm md:text-base leading-relaxed whitespace-pre-line">${escapeHtml(safeText(x.Description))}</p></div></div>`;
   const visitorWelcome = currentUser
-    ? `<div class="bg-slate-900 rounded-3xl p-5 sm:p-6 text-white shadow-lg flex flex-col sm:flex-row sm:items-center justify-between gap-4"><div class="flex items-center gap-4 min-w-0"><span class="w-12 h-12 rounded-2xl bg-white/10 text-blue-300 flex items-center justify-center text-xl shrink-0"><i class="fas fa-user"></i></span><div class="min-w-0"><p class="text-xs uppercase tracking-wider text-slate-400 font-bold">Dashboard Visitor</p><h2 class="font-black text-lg truncate">Halo, ${escapeHtml(safeText(currentUser.FullName, 'Visitor'))}</h2><p class="text-sm text-slate-400 truncate">${escapeHtml(safeText(currentUser.Email))}</p></div></div><button onclick="switchPublicSection('profile')" class="inline-flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-white text-slate-900 font-bold text-sm"><i class="fas fa-user-pen"></i> Profil Saya</button></div>`
+    ? `<div class="bg-slate-900 rounded-3xl p-5 sm:p-6 text-white shadow-lg flex items-center gap-4"><span class="w-12 h-12 rounded-2xl bg-white/10 text-blue-300 flex items-center justify-center text-xl shrink-0"><i class="fas fa-user"></i></span><div class="min-w-0"><p class="text-xs uppercase tracking-wider text-slate-400 font-bold">Dashboard Visitor</p><h2 class="font-black text-lg truncate">Halo, ${escapeHtml(safeText(currentUser.FullName, 'Visitor'))}</h2><p class="text-sm text-slate-400 truncate">${escapeHtml(safeText(currentUser.Email))}</p></div></div>`
     : '';
+  const quickAccess = `<nav class="public-home-quick-access" aria-label="Akses cepat">
+    <button type="button" class="public-home-quick-access-btn" onclick="switchPublicSection('portfolio')" aria-label="Portfolio dan Career" title="Portfolio &amp; Career"><i class="fas fa-briefcase" aria-hidden="true"></i><span class="sr-only">Portfolio &amp; Career</span></button>
+    <button type="button" class="public-home-quick-access-btn" onclick="switchPublicSection('documents')" aria-label="CV dan Lamaran Kerja" title="CV &amp; Lamaran Kerja"><i class="fas fa-file-lines" aria-hidden="true"></i><span class="sr-only">CV &amp; Lamaran Kerja</span></button>
+    <button type="button" class="public-home-quick-access-btn" onclick="switchPublicSection('gallery')" aria-label="Gallery" title="Gallery"><i class="fas fa-images" aria-hidden="true"></i><span class="sr-only">Gallery</span></button>
+    <button type="button" class="public-home-quick-access-btn" onclick="switchPublicSection('blog')" aria-label="Blog" title="Blog"><i class="fas fa-newspaper" aria-hidden="true"></i><span class="sr-only">Blog</span></button>
+    <button type="button" class="public-home-quick-access-btn" onclick="switchPublicSection('profile')" aria-label="Profil" title="Profil"><i class="fas fa-user" aria-hidden="true"></i><span class="sr-only">Profil</span></button>
+    <button type="button" class="public-home-quick-access-btn" onclick="switchPublicSection('chat')" aria-label="Chat" title="Chat"><i class="fas fa-comments" aria-hidden="true"></i><span class="sr-only">Chat</span></button>
+  </nav>`;
   
   e.className = 'flex flex-col gap-6 animate-fade-in w-full';
-  e.innerHTML = visitorWelcome + htmlHero + `<div id="public-stats-container" class="mt-6 w-full"><div class="text-center text-slate-500 text-sm py-12 bg-white rounded-3xl border shadow-sm"><i class="fas fa-spinner fa-spin text-3xl mb-3 text-blue-500"></i><br>Menarik Data Komunitas...</div></div>`;
+  e.innerHTML = visitorWelcome + htmlHero + quickAccess + `<div id="public-stats-container" class="mt-6 w-full"><div class="text-center text-slate-500 text-sm py-12 bg-white rounded-3xl border shadow-sm"><i class="fas fa-spinner fa-spin text-3xl mb-3 text-blue-500"></i><br>Menarik Data Komunitas...</div></div>`;
 
   try {
     const [att, usersRes] = await Promise.all([getCachedData('Visitor_Attendance'), getCachedData('Users')]);
     const dataTamu = (att.data || []).reverse();
     const dataUsers = (usersRes.data || []).reverse();
 
-    const htmlTamu = buildAccordionList(dataTamu, 'tamu');
-    const htmlReg = buildAccordionList(dataUsers, 'akun');
-
-    document.getElementById('public-stats-container').innerHTML = `
-      <div class="grid grid-cols-2 gap-4 mb-6">
-        <div class="bg-white rounded-2xl p-5 border shadow-sm flex items-center gap-4"><div class="h-12 w-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center text-xl shrink-0"><i class="fas fa-book"></i></div><div><p class="text-[10px] sm:text-xs font-bold text-slate-500 uppercase">Buku Tamu</p><h4 class="text-xl sm:text-2xl font-black">${dataTamu.length}</h4></div></div>
-        <div class="bg-white rounded-2xl p-5 border shadow-sm flex items-center gap-4"><div class="h-12 w-12 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center text-xl shrink-0"><i class="fas fa-users"></i></div><div><p class="text-[10px] sm:text-xs font-bold text-slate-500 uppercase">Akun Terdaftar</p><h4 class="text-xl sm:text-2xl font-black">${dataUsers.length}</h4></div></div>
-      </div>
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <div class="bg-white rounded-2xl border shadow-sm overflow-hidden h-[400px] flex flex-col"><div class="p-4 border-b bg-slate-50 shrink-0"><h3 class="font-extrabold flex items-center gap-2"><i class="fas fa-history text-emerald-500"></i> Riwayat Tamu</h3></div><div class="overflow-y-auto">${htmlTamu}</div></div>
-        <div class="bg-white rounded-2xl border shadow-sm overflow-hidden h-[400px] flex flex-col"><div class="p-4 border-b bg-slate-50 shrink-0"><h3 class="font-extrabold flex items-center gap-2"><i class="fas fa-user-plus text-blue-500"></i> Registrasi Akun</h3></div><div class="overflow-y-auto">${htmlReg}</div></div>
-      </div>
-    `;
+    publicStatsSnapshot = { attendance: dataTamu, accounts: dataUsers };
+    document.getElementById('public-stats-container').innerHTML = buildPublicStatsDashboard(dataTamu, dataUsers);
   } catch (err) {
     document.getElementById('public-stats-container').innerHTML = '<div class="p-4 text-center text-rose-500 text-sm bg-rose-50 rounded-2xl">Gagal memuat data statistik.</div>';
   }
@@ -3439,6 +3645,55 @@ function renderPublicProfile() {
   switchVisitorTab('profile');
 }
 
+function isVideoMediaUrl(value) {
+  const url = safeUrl(value);
+  if (!url) return false;
+  return /\.(mp4|m4v|webm|ogv|ogg|mov|m3u8)(?:$|[?#])/i.test(url) ||
+    /(?:youtube\.com\/(?:watch|embed|shorts)|youtu\.be\/|(?:player\.)?vimeo\.com\/(?:video\/)?\d+)/i.test(url);
+}
+
+function buildPublicVideoMarkup(value, className = '') {
+  const url = safeUrl(value);
+  if (!url) return '';
+
+  let parsed;
+  try { parsed = new URL(url); } catch (error) { return ''; }
+  const host = parsed.hostname.toLowerCase();
+  let embedUrl = '';
+
+  if (host.includes('drive.google.com')) {
+    const id = parsed.pathname.match(/\/file\/d\/([^/]+)/)?.[1] || parsed.searchParams.get('id');
+    if (id) embedUrl = `https://drive.google.com/file/d/${encodeURIComponent(id)}/preview`;
+  } else if (host === 'youtu.be') {
+    embedUrl = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(parsed.pathname.slice(1))}`;
+  } else if (host.includes('youtube.com')) {
+    const id = parsed.searchParams.get('v') || parsed.pathname.match(/\/(?:embed|shorts)\/([^/]+)/)?.[1];
+    if (id) embedUrl = `https://www.youtube-nocookie.com/embed/${encodeURIComponent(id)}`;
+  } else if (host.includes('vimeo.com')) {
+    const id = parsed.pathname.match(/\/(\d+)/)?.[1];
+    if (id) embedUrl = `https://player.vimeo.com/video/${encodeURIComponent(id)}`;
+  }
+
+  if (embedUrl) {
+    return `<div class="public-video-frame ${className}"><iframe src="${escapeHtml(embedUrl)}" title="Video" loading="lazy" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" allowfullscreen></iframe></div>`;
+  }
+
+  return `<video class="public-video-player ${className}" controls preload="metadata" playsinline><source src="${escapeHtml(url)}">Browser Anda tidak mendukung pemutar video.</video>`;
+}
+
+function renderPublicMedia(item, imageValue, className = '') {
+  const imageOrMedia = imageValue || item.Image_URL || item.CoverImage_URL || item.Cover_URL || item.Thumbnail_URL;
+  const mediaType = String(item.Media_Type || item.MediaType || item.Type || item.Category || '').toLowerCase();
+  const explicitVideo = item.Video_URL || item.VideoURL || item.Media_URL || item.MediaURL || (mediaType.includes('video') ? imageOrMedia : '');
+  const videoUrl = explicitVideo || (isVideoMediaUrl(imageOrMedia) ? imageOrMedia : '');
+  if (videoUrl) return buildPublicVideoMarkup(videoUrl, className);
+
+  const imageUrl = safeUrl(imageOrMedia);
+  return imageUrl
+    ? `<img src="${escapeHtml(imageUrl)}" class="${className}" loading="lazy" alt="${escapeHtml(safeText(item.Title, 'Media'))}">`
+    : `<div class="${className} public-media-placeholder"><i class="fas fa-photo-film text-3xl"></i></div>`;
+}
+
 /* ================================================================
    PUBLIC PORTFOLIO
    ================================================================ */
@@ -3451,19 +3706,16 @@ function renderPublicPortfolio(r) {
 
   if (!e) return;
 
-  const a =
-    r.filter(
-      x =>
-        !x.Status ||
-        x.Status === 'publish' ||
-        x.Status === 'active'
-    );
+  const a = (Array.isArray(r) ? r : []).filter(x => {
+    const status = String(x.Status || '').trim().toLowerCase();
+    return !status || ['publish', 'published', 'active'].includes(status);
+  });
 
   if (!a.length) {
 
     renderEmpty(
       e,
-      'Belum ada portfolio.'
+      'Belum ada project Portfolio yang dipublikasikan. Periksa data pada sheet Portfolio dan pastikan Status bernilai publish atau active.'
     );
 
     return;
@@ -3477,46 +3729,22 @@ function renderPublicPortfolio(r) {
     .map(
       x => {
 
-        const img =
-          safeUrl(
-            x.CoverImage_URL
-          );
-
-        const link =
-          safeUrl(
-            x.Link
-          );
+        const media = renderPublicMedia(x, x.CoverImage_URL || x.Image_URL || x.ImageURL || x.Thumbnail_URL, 'h-48 w-full object-cover rounded-2xl mb-4');
+        const link = safeUrl(x.Link || x.Project_URL || x.URL);
+        const title = safeText(x.Title || x.Title_ID || x.Title_EN, 'Project');
+        const description = safeText(x.Description || x.Description_ID || x.Description_EN || x.Summary);
 
         return `
           <article class="bg-white p-5 rounded-3xl border shadow-sm flex flex-col">
 
-            ${
-              img
-                ? `<img
-                    src="${img}"
-                    class="h-48 w-full object-cover rounded-2xl mb-4"
-                    alt=""
-                  >`
-
-                : `<div class="h-48 rounded-2xl bg-slate-100 flex items-center justify-center text-slate-300">
-                    <i class="fas fa-image text-3xl"></i>
-                  </div>`
-            }
+            ${media}
 
             <h3 class="font-extrabold">
-              ${escapeHtml(
-                safeText(
-                  x.Title
-                )
-              )}
+              ${escapeHtml(title)}
             </h3>
 
             <p class="text-sm text-slate-500 mt-2 flex-1">
-              ${escapeHtml(
-                safeText(
-                  x.Description
-                )
-              )}
+              ${escapeHtml(description)}
             </p>
 
             ${
@@ -3919,6 +4147,42 @@ function completePendingContentAction(action) {
 /* ================================================================
    PUBLIC GALLERY
    ================================================================ */
+function formatPublicUploadDate(item) {
+  const dateValue = [
+    item?.Upload_Date,
+    item?.UploadDate,
+    item?.Uploaded_At,
+    item?.UploadedAt,
+    item?.Date_Uploaded,
+    item?.Created_At,
+    item?.CreatedAt,
+    item?.Timestamp,
+    item?.Date,
+    item?.Tanggal,
+    item?.Waktu,
+    item?.PublishDate
+  ].map(value => String(value || '').trim()).find(Boolean);
+
+  if (!dateValue) return 'Belum tersedia';
+
+  const dmy = dateValue.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+  const parsedDate = dmy
+    ? new Date(Date.UTC(Number(dmy[3]), Number(dmy[2]) - 1, Number(dmy[1])))
+    : new Date(dateValue);
+  if (Number.isNaN(parsedDate.getTime())) return safeText(dateValue);
+
+  return new Intl.DateTimeFormat('id-ID', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'Asia/Jakarta'
+  }).format(parsedDate);
+}
+
+function publicUploadDateMarkup(item) {
+  return `<p class="public-upload-date"><i class="fas fa-calendar-days" aria-hidden="true"></i><span>Tanggal Upload: ${escapeHtml(formatPublicUploadDate(item))}</span></p>`;
+}
+
 function renderPublicGallery(r) {
 
   const e = document.getElementById('public-gallery-content');
@@ -3928,16 +4192,18 @@ function renderPublicGallery(r) {
   if (!items.length) return renderEmpty(e, 'Belum ada gallery.');
 
   e.innerHTML = items.map(item => {
-    const img = safeUrl(item.Image_URL);
+    const mediaUrl = safeUrl(item.Video_URL || item.VideoURL || item.Media_URL || item.MediaURL || item.Image_URL);
+    const media = renderPublicMedia(item, item.Image_URL, 'w-full h-64 object-cover');
     const title = safeText(item.Title, 'Gallery');
     const description = safeText(item.Description);
     const id = getPublicContentId(item, 'Gallery');
     return `<article class="bg-white rounded-3xl border shadow-sm overflow-hidden public-content-card">
-      ${img ? `<img src="${img}" class="w-full h-64 object-cover" loading="lazy" alt="${escapeHtml(title)}">` : ''}
+      ${media}
       <div class="p-5">
         <h3 class="font-black">${escapeHtml(title)}</h3>
         <p class="text-sm text-slate-500 mt-2 whitespace-pre-line">${escapeHtml(description)}</p>
-        ${buildPublicContentActions(item, 'Gallery', id, img, description || title)}
+        ${publicUploadDateMarkup(item)}
+        ${buildPublicContentActions(item, 'Gallery', id, mediaUrl, description || title)}
       </div>
     </article>`;
   }).join('');
@@ -3959,14 +4225,14 @@ function renderPublicBlog(r) {
     const title = safeText(item.Title, 'Blog');
     const body = safeText(item.Excerpt || item.Content);
     const downloadText = safeText(item.Content || item.Excerpt || body);
-    const cover = safeUrl(item.Image_URL || item.Cover_URL || item.Thumbnail_URL);
-    const downloadUrl = safeUrl(item.Download_URL || item.File_URL || item.Attachment_URL || item.Document_URL);
+    const cover = renderPublicMedia(item, item.CoverImage_URL || item.Image_URL || item.Cover_URL || item.Thumbnail_URL, 'w-full h-56 object-cover rounded-2xl mb-5');
+    const downloadUrl = safeUrl(item.Download_URL || item.File_URL || item.Attachment_URL || item.Document_URL || item.Video_URL || item.VideoURL || item.Media_URL || item.MediaURL);
     const id = getPublicContentId(item, 'Blog');
     return `<article class="bg-white p-6 rounded-3xl border shadow-sm public-content-card">
-      ${cover ? `<img src="${cover}" class="w-full h-56 object-cover rounded-2xl mb-5" loading="lazy" alt="${escapeHtml(title)}">` : ''}
-      <div class="text-xs text-blue-600 font-bold">${escapeHtml(safeText(item.PublishDate))}</div>
+      ${cover}
       <h3 class="font-black text-xl mt-2">${escapeHtml(title)}</h3>
       <p class="text-sm text-slate-500 mt-3 whitespace-pre-line">${escapeHtml(body)}</p>
+      ${publicUploadDateMarkup(item)}
       ${buildPublicContentActions(item, 'Blog', id, downloadUrl, downloadText || title)}
     </article>`;
   }).join('');
@@ -4115,36 +4381,12 @@ function renderPublicDocuments(r) {
 }
 
 /* ================================================================
-   MENU CONTACT PUBLIK (MENJADI APLIKASI LIVE CHAT)
+   CHAT PUBLIK DI BAGIAN KONTEN (TANPA WIDGET MENGAMBANG)
    ================================================================ */
-function togglePublicChat(forceOpen) {
-    const panel = document.getElementById('public-chat-panel');
-    const fab = document.getElementById('public-chat-fab');
-    if (!panel || !fab) return;
-
-    const shouldOpen = typeof forceOpen === 'boolean'
-        ? forceOpen
-        : panel.classList.contains('hidden');
-    panel.classList.toggle('hidden', !shouldOpen);
-    panel.setAttribute('aria-hidden', String(!shouldOpen));
-    fab.setAttribute('aria-expanded', String(shouldOpen));
-    fab.setAttribute('aria-label', shouldOpen ? 'Tutup Chat' : 'Buka Chat');
-    fab.setAttribute('title', shouldOpen ? 'Tutup Chat' : 'Chat');
-    fab.innerHTML = shouldOpen
-        ? '<i class="fas fa-xmark" aria-hidden="true"></i>'
-        : '<i class="fas fa-comments" aria-hidden="true"></i>';
-
-    if (shouldOpen) {
-        renderPublicContact([]);
-    } else if (chatSyncTimer) {
-        clearInterval(chatSyncTimer);
-        chatSyncTimer = null;
-    }
-}
-
 function renderPublicContact(r) {
-    const e = document.getElementById('public-chat-panel-content') || document.getElementById('public-chat-content') || document.getElementById('public-contact-content');
+    const e = document.getElementById('public-chat-content') || document.getElementById('public-contact-content');
     if (!e) return;
+    e.className = 'public-chat-content';
 
     if (!getChatIdentity()) {
         e.innerHTML = `<div class="public-chat-prompt"><i class="fas fa-comments text-5xl text-emerald-500 mb-4"></i><h2 class="text-xl font-black mb-2 text-slate-800">Chat Publik</h2><p class="text-sm text-slate-500 mb-5">Isi buku tamu terlebih dahulu untuk mulai menggunakan chat.</p><button onclick="navigateTo('attendance')" class="bg-emerald-500 hover:bg-emerald-600 text-white px-5 py-3 rounded-xl font-bold text-sm shadow-lg">Isi Buku Tamu</button></div>`;
@@ -4176,12 +4418,14 @@ async function renderDynamicMenu() {
     { key: 'portfolio', label: 'Portfolio dan Career', icon: 'fa-briefcase' },
     { key: 'documents', label: 'CV & Lamaran Kerja', icon: 'fa-file-lines' },
     { key: 'gallery', label: 'Gallery', icon: 'fa-images' },
-    { key: 'blog', label: 'Blog', icon: 'fa-newspaper' }
+    { key: 'blog', label: 'Blog', icon: 'fa-newspaper' },
+    { key: 'profile', label: 'Profil', icon: 'fa-user' }
   ];
   const coreKeys = new Set(coreItems.map(item => item.key));
   const excludedKeys = new Set(['career', 'careertimeline', 'chat', 'contact', 'profile', 'profil', 'cv', 'cvlamaran', 'cvdanlamarankerja', 'cv&lamarankerja', 'lamaran']);
   const customItems = rows.map(row => {
     const rawSection = String(row.Section || '').trim();
+    if (isFooterMenuSection(rawSection)) return null;
     const key = rawSection.toLowerCase().replace(/[\s_]+/g, '');
     const label = safeText(row.Label, rawSection || 'Menu');
     const url = safeUrl(row.URL);
@@ -4696,8 +4940,11 @@ async function loadAdminModule(sheetName, force = false) {
       });
 
       try {
-        const result = await getCachedData('Contact', force);
-        renderAdminFooterEditor(result.data || []);
+        const [contactResult, menuResult] = await Promise.all([
+          getCachedData('Contact', force),
+          getCachedData('Dynamic_Menu', force)
+        ]);
+        renderAdminFooterEditor(contactResult.data || [], menuResult.data || []);
       } catch (error) {
         if (welcomePanel) welcomePanel.innerHTML = '<div class="p-6 rounded-xl border border-rose-200 bg-rose-50 text-rose-700 font-bold">Footer tidak dapat dimuat. Periksa koneksi lalu refresh.</div>';
         showToast(error.message || 'Gagal memuat data footer.', 'error');
@@ -4771,7 +5018,46 @@ async function loadAdminModule(sheetName, force = false) {
   }
 }
 
-function renderAdminFooterEditor(rows) {
+function buildFooterCooperationAdminRow(group = {}) {
+  const key = escapeHtml(safeText(group.key, ''));
+  const mouId = escapeHtml(safeText(group.mouId, ''));
+  const websiteId = escapeHtml(safeText(group.websiteId, ''));
+  const name = escapeHtml(safeText(group.name, ''));
+  const logoUrl = escapeHtml(safeText(group.logoUrl, ''));
+  const mouUrl = escapeHtml(safeText(group.mouUrl, ''));
+  const websiteUrl = escapeHtml(safeText(group.websiteUrl, ''));
+
+  return `<div data-footer-company-row data-company-key="${key}" data-mou-id="${mouId}" data-website-id="${websiteId}" class="footer-admin-company-row">
+    <div class="mb-4 flex items-center justify-between gap-3">
+      <span class="text-xs font-black uppercase tracking-widest text-slate-500">Perusahaan kerja sama</span>
+      <button type="button" onclick="removeFooterCooperationAdminRow(this)" class="text-xs font-bold text-rose-600 hover:text-rose-700">Hapus dari daftar</button>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <label class="block text-xs font-bold text-slate-700">Nama Perusahaan<input type="text" data-company-name value="${name}" placeholder="Nama perusahaan" class="mt-1 w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-normal outline-none focus:border-blue-500"></label>
+      <label class="block text-xs font-bold text-slate-700">URL Logo Perusahaan<input type="url" data-company-logo value="${logoUrl}" placeholder="https://.../logo.png" class="mt-1 w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-normal outline-none focus:border-blue-500"></label>
+      <label class="block text-xs font-bold text-slate-700">URL Dokumen MoU<input type="url" data-company-mou value="${mouUrl}" placeholder="https://.../mou.pdf" class="mt-1 w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-normal outline-none focus:border-blue-500"></label>
+      <label class="block text-xs font-bold text-slate-700">URL Situs Web Perusahaan<input type="url" data-company-website value="${websiteUrl}" placeholder="https://perusahaan.co.id" class="mt-1 w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-normal outline-none focus:border-blue-500"></label>
+    </div>
+  </div>`;
+}
+
+function addFooterCooperationAdminRow() {
+  const list = document.getElementById('footer-cooperation-admin-list');
+  if (list) list.insertAdjacentHTML('beforeend', buildFooterCooperationAdminRow());
+}
+
+function removeFooterCooperationAdminRow(button) {
+  const row = button?.closest('[data-footer-company-row]');
+  if (!row) return;
+  if (row.dataset.mouId || row.dataset.websiteId) {
+    row.dataset.removed = 'true';
+    row.classList.add('hidden');
+  } else {
+    row.remove();
+  }
+}
+
+function renderAdminFooterEditor(rows, socialRows = []) {
   const panel = document.getElementById('welcome-panel');
   if (!panel) return;
 
@@ -4784,13 +5070,43 @@ function renderAdminFooterEditor(rows) {
   const fields = [
     { key: 'Email', label: 'Email', type: 'email' },
     { key: 'WhatsApp', label: 'WhatsApp', type: 'tel' },
-    { key: 'Address', label: 'Alamat', type: 'textarea' },
-    { key: 'Instagram_URL', label: 'Instagram URL', type: 'url' },
-    { key: 'Facebook_URL', label: 'Facebook URL', type: 'url' },
-    { key: 'LinkedIn_URL', label: 'LinkedIn URL', type: 'url' },
-    { key: 'YouTube_URL', label: 'YouTube URL', type: 'url' },
-    { key: 'GitHub_URL', label: 'GitHub URL', type: 'url' }
+    { key: 'Address', label: 'Alamat', type: 'textarea' }
   ];
+  const socialRecords = new Map();
+  const cooperationRecords = new Map();
+  const productRecords = new Map();
+  (socialRows || []).forEach(row => {
+    const key = getFooterSocialKey(row.Section);
+    if (key) socialRecords.set(key, row);
+
+    const cooperation = getFooterCooperationParts(row.Section);
+    if (cooperation) {
+      const group = cooperationRecords.get(cooperation.key) || {
+        key: cooperation.key,
+        position: Number(row.Position || 0),
+        name: '',
+        logoUrl: '',
+        mouId: '',
+        mouUrl: '',
+        websiteId: '',
+        websiteUrl: ''
+      };
+      group.name = safeText(row.Label, group.name);
+      group.logoUrl = safeText(row.Icon, group.logoUrl);
+      group.position = Math.min(group.position || Number(row.Position || 0), Number(row.Position || 0));
+      group[cooperation.type === 'mou' ? 'mouId' : 'websiteId'] = safeText(row.MenuID, '');
+      group[cooperation.type === 'mou' ? 'mouUrl' : 'websiteUrl'] = safeText(row.URL, '');
+      cooperationRecords.set(cooperation.key, group);
+    }
+
+    const product = getFooterProductKey(row.Section);
+    if (product) productRecords.set(product, row);
+  });
+  const cooperationItems = Array.from(cooperationRecords.values()).sort((a, b) => a.position - b.position);
+  const websiteProduct = productRecords.get('website');
+  const chatProduct = productRecords.get('chat');
+  const websiteProductEnabled = Boolean(websiteProduct && isFooterRecordActive(websiteProduct));
+  const chatProductEnabled = Boolean(chatProduct && isFooterRecordActive(chatProduct));
 
   panel.innerHTML = `
     <div class="max-w-4xl mx-auto space-y-5 animate-fade-in">
@@ -4810,6 +5126,60 @@ function renderAdminFooterEditor(rows) {
         </div>
         <div class="mt-6 flex justify-end">
           <button type="button" onclick="saveFooterSettings(this)" class="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-sm shadow-lg shadow-blue-600/20"><i class="fas fa-floppy-disk mr-2"></i>Simpan Footer</button>
+        </div>
+      </form>
+
+      <form data-footer-cooperation-editor class="bg-white border border-slate-200 rounded-2xl p-4 sm:p-7 shadow-sm">
+        <div class="mb-5 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+          <div><h3 class="text-lg font-black text-slate-900">Kerjasama</h3><p class="mt-1 text-xs text-slate-500">Logo dan URL MoU/Situs Web perusahaan disimpan di spreadsheet Dynamic_Menu.</p></div>
+          <button type="button" onclick="addFooterCooperationAdminRow()" class="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-blue-50 text-blue-700 font-bold text-xs hover:bg-blue-100"><i class="fas fa-plus"></i>Tambah Perusahaan</button>
+        </div>
+        <div id="footer-cooperation-admin-list" class="space-y-4">
+          ${cooperationItems.map(buildFooterCooperationAdminRow).join('')}
+        </div>
+        <div class="mt-6 flex justify-end">
+          <button type="button" onclick="saveFooterCooperations(this)" class="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-sm shadow-lg shadow-blue-600/20"><i class="fas fa-floppy-disk mr-2"></i>Simpan Kerjasama</button>
+        </div>
+      </form>
+
+      <form data-footer-product-editor data-website-id="${escapeHtml(safeText(websiteProduct?.MenuID, ''))}" data-chat-id="${escapeHtml(safeText(chatProduct?.MenuID, ''))}" class="bg-white border border-slate-200 rounded-2xl p-4 sm:p-7 shadow-sm">
+        <div class="mb-5"><h3 class="text-lg font-black text-slate-900">Produk &amp; Layanan</h3><p class="mt-1 text-xs text-slate-500">Nama, logo, dan tautan diisi melalui Dashboard Admin lalu disimpan di spreadsheet Dynamic_Menu.</p></div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+            <h4 class="text-xs font-black uppercase tracking-wider text-slate-700">Situs Web</h4>
+            <label class="block text-xs font-bold text-slate-700">Nama Produk/Layanan<input type="text" data-product-website-label value="${escapeHtml(safeText(websiteProduct?.Label, ''))}" placeholder="Isi nama produk atau layanan" class="mt-1 w-full p-3 bg-white border border-slate-200 rounded-xl text-sm font-normal outline-none focus:border-blue-500"></label>
+            <label class="block text-xs font-bold text-slate-700">URL Situs Web<input type="url" data-product-website-url value="${escapeHtml(safeText(websiteProduct?.URL, ''))}" placeholder="https://" class="mt-1 w-full p-3 bg-white border border-slate-200 rounded-xl text-sm font-normal outline-none focus:border-blue-500"></label>
+            <label class="block text-xs font-bold text-slate-700">Logo (kelas ikon atau URL gambar)<input type="text" data-product-website-icon value="${escapeHtml(safeText(websiteProduct?.Icon, ''))}" placeholder="fas fa-globe atau https://.../logo.png" class="mt-1 w-full p-3 bg-white border border-slate-200 rounded-xl text-sm font-normal outline-none focus:border-blue-500"></label>
+            <label class="flex items-center gap-2 text-xs font-bold text-slate-700"><input type="checkbox" data-product-website-enabled ${websiteProductEnabled ? 'checked' : ''} class="h-4 w-4 accent-blue-600">Tampilkan di footer</label>
+          </div>
+          <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
+            <h4 class="text-xs font-black uppercase tracking-wider text-slate-700">Fitur Chat</h4>
+            <label class="block text-xs font-bold text-slate-700">Nama Produk/Layanan<input type="text" data-product-chat-label value="${escapeHtml(safeText(chatProduct?.Label, ''))}" placeholder="Isi nama fitur Chat" class="mt-1 w-full p-3 bg-white border border-slate-200 rounded-xl text-sm font-normal outline-none focus:border-blue-500"></label>
+            <label class="block text-xs font-bold text-slate-700">Logo (kelas ikon atau URL gambar)<input type="text" data-product-chat-icon value="${escapeHtml(safeText(chatProduct?.Icon, ''))}" placeholder="fas fa-comments atau https://.../logo.png" class="mt-1 w-full p-3 bg-white border border-slate-200 rounded-xl text-sm font-normal outline-none focus:border-blue-500"></label>
+            <label class="flex items-center gap-2 text-xs font-bold text-slate-700"><input type="checkbox" data-product-chat-enabled ${chatProductEnabled ? 'checked' : ''} class="h-4 w-4 accent-blue-600">Tampilkan di footer</label>
+          </div>
+        </div>
+        <div class="mt-6 flex justify-end">
+          <button type="button" onclick="saveFooterProducts(this)" class="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-sm shadow-lg shadow-blue-600/20"><i class="fas fa-floppy-disk mr-2"></i>Simpan Produk &amp; Layanan</button>
+        </div>
+      </form>
+
+      <form data-footer-social-editor class="bg-white border border-slate-200 rounded-2xl p-4 sm:p-7 shadow-sm">
+        <div class="mb-5">
+          <h3 class="text-lg font-black text-slate-900">Tautan Follow</h3>
+          <p class="mt-1 text-xs text-slate-500">Tautan disimpan di spreadsheet Dynamic_Menu. Isi URL publik untuk mengaktifkan kanal; kosongkan untuk menonaktifkannya.</p>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          ${FOOTER_SOCIAL_LINKS.map(item => {
+            const record = socialRecords.get(item.key);
+            const legacyUrl = item.contactKey ? contact[item.contactKey] : '';
+            const value = escapeHtml(safeText(record ? record.URL : legacyUrl, ''));
+            const menuId = escapeHtml(safeText(record?.MenuID, ''));
+            return `<label class="block text-xs font-bold text-slate-700">${escapeHtml(item.label)}<input type="url" data-footer-social-key="${item.key}" data-menu-id="${menuId}" value="${value}" placeholder="https://" class="mt-1 w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-normal outline-none focus:border-blue-500"></label>`;
+          }).join('')}
+        </div>
+        <div class="mt-6 flex justify-end">
+          <button type="button" onclick="saveFooterSocialLinks(this)" class="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-sm shadow-lg shadow-blue-600/20"><i class="fas fa-floppy-disk mr-2"></i>Simpan Tautan Follow</button>
         </div>
       </form>
     </div>`;
@@ -4844,6 +5214,197 @@ async function saveFooterSettings(button) {
     await renderDynamicFooter();
   } catch (error) {
     showToast(error.message || 'Gagal menyimpan footer.', 'error');
+  } finally {
+    toggleLoader(false);
+  }
+}
+
+async function saveFooterSocialLinks(button) {
+  const form = button?.closest('[data-footer-social-editor]');
+  if (!form) return showToast('Form tautan Follow tidak ditemukan.', 'error');
+
+  const updates = [];
+  for (const input of form.querySelectorAll('[data-footer-social-key]')) {
+    const item = FOOTER_SOCIAL_LINKS.find(link => link.key === input.dataset.footerSocialKey);
+    if (!item) continue;
+
+    const rawUrl = input.value.trim();
+    const url = safeUrl(rawUrl);
+    if (rawUrl && !url) return showToast(`URL ${item.label} tidak valid.`, 'error');
+
+    const menuId = input.dataset.menuId.trim();
+    if (!menuId && !url) continue;
+
+    updates.push({
+      action: menuId ? 'update' : 'insert',
+      data: {
+        ...(menuId ? { id: menuId } : {}),
+        Label: item.label,
+        Section: `footer-social:${item.key}`,
+        Icon: item.iconClass,
+        URL: url,
+        Position: String(FOOTER_SOCIAL_LINKS.indexOf(item) + 1),
+        Status: url ? 'publish' : 'draft'
+      }
+    });
+  }
+
+  return persistFooterDynamicMenuRows(updates, 'Tautan Follow berhasil disimpan ke spreadsheet.', 'Belum ada tautan Follow untuk disimpan.');
+}
+
+async function saveFooterCooperations(button) {
+  const form = button?.closest('[data-footer-cooperation-editor]');
+  if (!form) return showToast('Form Kerjasama tidak ditemukan.', 'error');
+
+  const updates = [];
+  const usedKeys = new Set();
+  const rows = Array.from(form.querySelectorAll('[data-footer-company-row]'));
+
+  for (const [index, row] of rows.entries()) {
+    const removed = row.dataset.removed === 'true';
+    const name = removed ? '' : row.querySelector('[data-company-name]')?.value.trim() || '';
+    const logoRaw = removed ? '' : row.querySelector('[data-company-logo]')?.value.trim() || '';
+    const mouRaw = removed ? '' : row.querySelector('[data-company-mou]')?.value.trim() || '';
+    const websiteRaw = removed ? '' : row.querySelector('[data-company-website]')?.value.trim() || '';
+    const logoUrl = safeUrl(logoRaw);
+    const mouUrl = safeUrl(mouRaw);
+    const websiteUrl = safeUrl(websiteRaw);
+    const mouId = row.dataset.mouId.trim();
+    const websiteId = row.dataset.websiteId.trim();
+
+    if (logoRaw && !logoUrl) return showToast(`URL logo ${name || 'perusahaan'} tidak valid.`, 'error');
+    if (mouRaw && !mouUrl) return showToast(`URL Dokumen MoU ${name || 'perusahaan'} tidak valid.`, 'error');
+    if (websiteRaw && !websiteUrl) return showToast(`URL situs web ${name || 'perusahaan'} tidak valid.`, 'error');
+    if (!name && (logoUrl || mouUrl || websiteUrl)) return showToast('Nama perusahaan wajib diisi.', 'error');
+    if (!name && !logoUrl && !mouUrl && !websiteUrl && !mouId && !websiteId) continue;
+
+    const key = row.dataset.companyKey || makeFooterCompanyKey(name) || `company-${Date.now()}-${index + 1}`;
+    if (!key && (mouId || websiteId)) return showToast('Nama perusahaan lama tidak valid. Masukkan nama baru.', 'error');
+    if (!key && (mouUrl || websiteUrl)) return showToast('Isi nama perusahaan terlebih dahulu.', 'error');
+    if (!removed && key && usedKeys.has(key)) return showToast('Nama perusahaan harus unik di daftar Kerjasama.', 'error');
+    if (!removed && key) usedKeys.add(key);
+
+    const companyRows = [
+      { type: 'mou', menuId: mouId, url: mouUrl },
+      { type: 'website', menuId: websiteId, url: websiteUrl }
+    ];
+    companyRows.forEach(item => {
+      if (!item.menuId && !item.url) return;
+      updates.push({
+        action: item.menuId ? 'update' : 'insert',
+        data: {
+          ...(item.menuId ? { id: item.menuId } : {}),
+          Label: name,
+          Section: `footer-cooperation:${key}:${item.type}`,
+          Icon: logoUrl,
+          URL: item.url,
+          Position: String(index + 1),
+          Status: name && item.url ? 'publish' : 'draft'
+        }
+      });
+    });
+  }
+
+  return persistFooterDynamicMenuRows(updates, 'Data Kerjasama berhasil disimpan ke spreadsheet.', 'Belum ada perubahan data Kerjasama.');
+}
+
+async function saveFooterProducts(button) {
+  const form = button?.closest('[data-footer-product-editor]');
+  if (!form) return showToast('Form Produk & Layanan tidak ditemukan.', 'error');
+
+  const websiteInput = form.querySelector('[data-product-website-url]');
+  const websiteLabelInput = form.querySelector('[data-product-website-label]');
+  const websiteIconInput = form.querySelector('[data-product-website-icon]');
+  const websiteEnabledInput = form.querySelector('[data-product-website-enabled]');
+  const chatLabelInput = form.querySelector('[data-product-chat-label]');
+  const chatIconInput = form.querySelector('[data-product-chat-icon]');
+  const chatInput = form.querySelector('[data-product-chat-enabled]');
+  const websiteRaw = websiteInput?.value.trim() || '';
+  const websiteUrl = safeUrl(websiteRaw);
+  if (websiteRaw && !websiteUrl) return showToast('URL Situs Web perusahaan tidak valid.', 'error');
+
+  const websiteLabel = websiteLabelInput?.value.trim() || '';
+  const websiteIconRaw = websiteIconInput?.value.trim() || '';
+  const websiteIconUrl = safeUrl(websiteIconRaw);
+  if (websiteIconRaw && !websiteIconUrl && !/^[a-z0-9\s-]+$/i.test(websiteIconRaw)) {
+    return showToast('Logo Situs Web harus berupa kelas ikon atau URL gambar.', 'error');
+  }
+  const chatLabel = chatLabelInput?.value.trim() || '';
+  const chatIconRaw = chatIconInput?.value.trim() || '';
+  const chatIconUrl = safeUrl(chatIconRaw);
+  if (chatIconRaw && !chatIconUrl && !/^[a-z0-9\s-]+$/i.test(chatIconRaw)) {
+    return showToast('Logo Fitur Chat harus berupa kelas ikon atau URL gambar.', 'error');
+  }
+
+  const websiteId = form.dataset.websiteId.trim();
+  const chatId = form.dataset.chatId.trim();
+  const websiteEnabled = Boolean(websiteEnabledInput?.checked);
+  const chatEnabled = Boolean(chatInput?.checked);
+  const updates = [];
+
+  if (websiteEnabled && !websiteLabel) return showToast('Isi nama Situs Web sebelum menampilkannya.', 'error');
+  if (websiteId || websiteLabel || websiteUrl || websiteIconRaw) {
+    updates.push({
+      action: websiteId ? 'update' : 'insert',
+      data: {
+        ...(websiteId ? { id: websiteId } : {}),
+        Label: websiteLabel,
+        Section: 'footer-product:website',
+        Icon: websiteIconUrl || websiteIconRaw,
+        URL: websiteUrl,
+        Position: '1',
+        Status: websiteEnabled && websiteLabel ? 'publish' : 'draft'
+      }
+    });
+  }
+
+  if (chatEnabled && !chatLabel) return showToast('Isi nama Fitur Chat sebelum menampilkannya.', 'error');
+  if (chatId || chatLabel || chatIconRaw) {
+    updates.push({
+      action: chatId ? 'update' : 'insert',
+      data: {
+        ...(chatId ? { id: chatId } : {}),
+        Label: chatLabel,
+        Section: 'footer-product:chat',
+        Icon: chatIconUrl || chatIconRaw,
+        URL: '',
+        Position: '2',
+        Status: chatEnabled && chatLabel ? 'publish' : 'draft'
+      }
+    });
+  }
+
+  return persistFooterDynamicMenuRows(updates, 'Produk & Layanan berhasil disimpan ke spreadsheet.', 'Belum ada perubahan Produk & Layanan.');
+}
+
+async function persistFooterDynamicMenuRows(updates, successMessage, emptyMessage) {
+  if (!updates.length) return showToast(emptyMessage, 'warning');
+
+  toggleLoader(true);
+  try {
+    for (const update of updates) {
+      const result = await apiCall('POST', {
+        action: update.action,
+        sheet: 'Dynamic_Menu',
+        user: currentUser?.UserID || 'System',
+        data: update.data
+      });
+      if (result?.status !== 'success') {
+        throw new Error(result?.message || 'Data footer gagal disimpan.');
+      }
+    }
+
+    invalidateCache('Dynamic_Menu');
+    await getCachedData('Dynamic_Menu', true);
+    await Promise.all([renderDynamicMenu(), renderDynamicFooter()]);
+    await loadAdminModule('Footer', true);
+    showToast(successMessage, 'success');
+    return true;
+  } catch (error) {
+    invalidateCache('Dynamic_Menu');
+    await loadAdminModule('Footer', true);
+    showToast(error.message || 'Gagal menyimpan data footer.', 'error');
+    return false;
   } finally {
     toggleLoader(false);
   }
@@ -5214,6 +5775,9 @@ async function actionData(id, actionType) {
          if (related.includes(activeModule)) {
             related.forEach(x => invalidateCache(x));
             if (typeof renderPublicContent === 'function') renderPublicContent(false);
+            if (activeModule === 'Dynamic_Menu') {
+              await Promise.all([renderDynamicMenu(), renderDynamicFooter()]);
+            }
          }
       }, 500); // Beri jeda 0.5 detik agar Sheets di server selesai bekerja
     } else {
@@ -7822,14 +8386,19 @@ async function renderDynamicFooter() {
   const aboutText = document.getElementById('footer-about-text');
   const contactInfo = document.getElementById('footer-contact-info');
   const socialLinks = document.getElementById('footer-social-links');
+  const cooperationLinks = document.getElementById('footer-cooperation-links');
+  const productLinks = document.getElementById('footer-product-links');
   if (siteName) siteName.textContent = document.title || 'Riba Prea Apriansa';
   if (contactInfo) contactInfo.innerHTML = '<p>Email not provided</p><p>Address not provided</p>';
   if (socialLinks) socialLinks.innerHTML = '';
+  if (cooperationLinks) cooperationLinks.innerHTML = '<p class="footer-empty-message">Informasi kerjasama segera hadir.</p>';
+  if (productLinks) productLinks.innerHTML = renderFooterProducts([]);
 
     try {
-    const [contactResult, homeResult] = await Promise.allSettled([
+    const [contactResult, homeResult, socialResult] = await Promise.allSettled([
       getCachedData('Contact', true),
-      getCachedData('Home')
+      getCachedData('Home'),
+      getCachedData('Dynamic_Menu', true)
     ]);
     if (contactResult.status === 'rejected') throw contactResult.reason;
 
@@ -7837,6 +8406,12 @@ async function renderDynamicFooter() {
     const contact = contacts.find(row => row.Status === 'publish' || row.Status === 'active') || contacts[0] || {};
     const homes = homeResult.status === 'fulfilled' ? homeResult.value.data || [] : [];
     const home = homes.find(row => row.Status === 'publish' || row.Status === 'active') || homes[0] || {};
+    const socialRows = socialResult.status === 'fulfilled' ? socialResult.value.data || [] : [];
+    const socialRecords = new Map();
+    socialRows.forEach(row => {
+      const key = getFooterSocialKey(row.Section);
+      if (key) socialRecords.set(key, row);
+    });
 
     if (siteName) siteName.textContent = safeText(home.Site_Name, document.title || 'Riba Prea Apriansa');
     if (aboutText) aboutText.textContent = safeText(home.Description || home.Subtitle, 'Portfolio and professional updates.');
@@ -7856,23 +8431,130 @@ async function renderDynamicFooter() {
       : '<p>Address not provided</p>';
     if (contactInfo) contactInfo.innerHTML = `${emailMarkup}${phoneMarkup}${addressMarkup}`;
 
-    const links = [
-      { key: 'Instagram_URL', label: 'Instagram', icon: 'fa-instagram', color: 'hover:bg-pink-600' },
-      { key: 'Facebook_URL', label: 'Facebook', icon: 'fa-facebook-f', color: 'hover:bg-blue-600' },
-      { key: 'LinkedIn_URL', label: 'LinkedIn', icon: 'fa-linkedin-in', color: 'hover:bg-blue-700' },
-      { key: 'YouTube_URL', label: 'YouTube', icon: 'fa-youtube', color: 'hover:bg-rose-600' },
-      { key: 'GitHub_URL', label: 'GitHub', icon: 'fa-github', color: 'hover:bg-slate-700' }
-    ];
     if (socialLinks) {
-      socialLinks.innerHTML = links.map(link => {
-        const url = safeUrl(contact[link.key]);
-        return url ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" aria-label="${link.label}" title="${link.label}" class="w-10 h-10 rounded-lg bg-slate-800 text-white flex items-center justify-center transition-colors ${link.color}"><i class="fab ${link.icon}"></i></a>` : '';
+      socialLinks.innerHTML = FOOTER_SOCIAL_LINKS.map(link => {
+        const record = socialRecords.get(link.key);
+        const recordStatus = String(record?.Status || '').toLowerCase();
+        const recordIsActive = record && (!recordStatus || recordStatus === 'publish' || recordStatus === 'active');
+        const rawUrl = record
+          ? (recordIsActive ? record.URL : '')
+          : (link.contactKey ? contact[link.contactKey] : '');
+        const url = safeUrl(rawUrl);
+        const icon = `<i class="${escapeHtml(link.iconClass)}" aria-hidden="true"></i>`;
+        const style = `--social-brand-color:${link.brandColor}`;
+        return url
+          ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" aria-label="${escapeHtml(link.label)}" title="${escapeHtml(link.label)}" data-brand="${link.key}" style="${style}" class="footer-social-link">${icon}</a>`
+          : `<span role="img" aria-label="${escapeHtml(link.label)}" title="Tautan ${escapeHtml(link.label)} belum diatur" data-brand="${link.key}" style="${style}" class="footer-social-link footer-social-link-unconfigured">${icon}</span>`;
       }).join('');
     }
+
+    if (cooperationLinks) {
+      cooperationLinks.innerHTML = renderFooterCooperationLogos(getFooterCooperationGroups(socialRows));
+    }
+
+    if (productLinks) productLinks.innerHTML = renderFooterProducts(socialRows);
   } catch (error) {
     console.warn('Footer ditampilkan dengan data fallback:', error);
   }
 }
+
+function renderFooterCooperationLogos(groups) {
+  if (!groups.length) return '<p class="footer-empty-message">Informasi kerjasama segera hadir.</p>';
+
+  return groups.map(group => {
+    const initials = safeText(group.name, 'CO')
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map(word => word.charAt(0))
+      .join('')
+      .toUpperCase() || 'CO';
+    const fallback = `<span class="footer-cooperation-logo-fallback${group.logoUrl ? ' is-hidden' : ''}">${escapeHtml(initials)}</span>`;
+    const image = group.logoUrl
+      ? `<img src="${escapeHtml(group.logoUrl)}" alt="Logo ${escapeHtml(group.name)}" loading="lazy" onerror="this.classList.add('is-hidden');this.nextElementSibling.classList.remove('is-hidden')">`
+      : '';
+    return `<div class="footer-cooperation-item">
+      <button type="button" class="footer-cooperation-logo" onclick="openFooterCooperation('${escapeHtml(group.key)}')" aria-label="Lihat dokumen kerjasama ${escapeHtml(group.name)}" title="${escapeHtml(group.name)}">${image}${fallback}</button>
+      <span class="footer-cooperation-name">${escapeHtml(group.name)}</span>
+    </div>`;
+  }).join('');
+}
+
+function renderFooterProducts(rows) {
+  const products = new Map();
+  (rows || []).forEach(row => {
+    const key = getFooterProductKey(row.Section);
+    if (key) products.set(key, row);
+  });
+
+  const website = products.get('website');
+  const chat = products.get('chat');
+  const renderProduct = (record, type, fallbackIcon, brandColor, action) => {
+    if (!record || !isFooterRecordActive(record)) return '';
+    const label = safeText(record.Label, '');
+    if (!label) return '';
+
+    const iconValue = safeText(record.Icon, '');
+    const iconUrl = safeUrl(iconValue);
+    const iconClass = !iconUrl && /^[a-z0-9\s-]+$/i.test(iconValue) ? iconValue : fallbackIcon;
+    const logo = iconUrl
+      ? `<img class="footer-product-logo-image" src="${escapeHtml(iconUrl)}" alt="" loading="lazy" onerror="this.classList.add('is-hidden');this.nextElementSibling.classList.remove('is-hidden')"><i class="footer-product-icon-glyph is-hidden ${escapeHtml(fallbackIcon)}" aria-hidden="true"></i>`
+      : `<i class="footer-product-icon-glyph ${escapeHtml(iconClass)}" aria-hidden="true"></i>`;
+    const url = type === 'website' ? safeUrl(record.URL) : '';
+    const common = `class="footer-product-icon" data-brand="${type}" style="--product-brand-color:${brandColor}" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}"`;
+
+    if (url) return `<a ${common} href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${logo}</a>`;
+    return `<button type="button" ${common} onclick="switchPublicSection('${action}')">${logo}</button>`;
+  };
+
+  const websiteIcon = renderProduct(website, 'website', 'fas fa-globe', '#2563eb', 'home');
+  const chatIcon = renderProduct(chat, 'chat', 'fas fa-comments', '#10b981', 'chat');
+  return websiteIcon + chatIcon;
+}
+
+async function openFooterCooperation(companyKey) {
+  let rows = memoryCache.Dynamic_Menu?.data || [];
+  if (!rows.length) {
+    try {
+      const result = await getCachedData('Dynamic_Menu');
+      rows = result.data || [];
+    } catch (error) {
+      showToast('Informasi kerjasama tidak dapat dimuat.', 'error');
+      return;
+    }
+  }
+
+  const company = getFooterCooperationGroups(rows).find(item => item.key === companyKey);
+  const modal = document.getElementById('footer-cooperation-modal');
+  const title = document.getElementById('footer-cooperation-modal-title');
+  const content = document.getElementById('footer-cooperation-modal-content');
+  if (!company || !modal || !title || !content) return;
+
+  title.textContent = company.name;
+  content.innerHTML = [
+    company.mouUrl
+      ? `<a class="footer-cooperation-action" href="${escapeHtml(company.mouUrl)}" target="_blank" rel="noopener noreferrer"><i class="fas fa-file-signature" aria-hidden="true"></i><span><strong>Dokumen MoU</strong><small>Buka dokumen kerjasama</small></span><i class="fas fa-arrow-up-right-from-square ml-auto" aria-hidden="true"></i></a>`
+      : '',
+    company.websiteUrl
+      ? `<a class="footer-cooperation-action" href="${escapeHtml(company.websiteUrl)}" target="_blank" rel="noopener noreferrer"><i class="fas fa-globe" aria-hidden="true"></i><span><strong>Situs Web</strong><small>Kunjungi situs perusahaan</small></span><i class="fas fa-arrow-up-right-from-square ml-auto" aria-hidden="true"></i></a>`
+      : ''
+  ].join('');
+
+  modal.classList.remove('hidden');
+  modal.setAttribute('aria-hidden', 'false');
+  requestAnimationFrame(() => modal.querySelector('a')?.focus());
+}
+
+function closeFooterCooperation() {
+  const modal = document.getElementById('footer-cooperation-modal');
+  if (!modal) return;
+  modal.classList.add('hidden');
+  modal.setAttribute('aria-hidden', 'true');
+}
+
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape') closeFooterCooperation();
+});
 
 /* ================================================================
    PENGGANTIAN VISITOR INBOX MENJADI CHAT
