@@ -73,7 +73,7 @@ const FOOTER_SOCIAL_LINKS = [
   { key: 'instagram', label: 'Instagram', contactKey: 'Instagram_URL', iconClass: 'fab fa-instagram', brandColor: '#e4405f' },
   { key: 'lemon8', label: 'Lemon8', iconClass: 'fas fa-lemon', brandColor: '#FFF44F' },
   { key: 'linkedin', label: 'LinkedIn', contactKey: 'LinkedIn_URL', iconClass: 'fab fa-linkedin-in', brandColor: '#0a66c2' },
-  { key: 'linktree', label: 'Linktree', iconClass: 'fas fa-link', brandColor: '#43e55e' },
+  { key: 'linktree', label: 'Linktree', iconClass: 'fas fa-linktree', brandColor: '#43e55e' },
   { key: 'telegram_channel', label: 'Channel Telegram', iconClass: 'fab fa-telegram', brandColor: '#26a5e4' },
   { key: 'threads', label: 'Threads', iconClass: 'fab fa-threads', brandColor: '#111111' },
   { key: 'tiktok', label: 'TikTok', iconClass: 'fab fa-tiktok', brandColor: '#010101' },
