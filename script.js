@@ -3532,8 +3532,8 @@ function buildPublicStatsDashboard(attendance, accounts) {
     <div class="public-chart-legend"><span><i class="public-chart-legend-dot public-chart-bar-attendance"></i>Buku Tamu</span><span><i class="public-chart-legend-dot public-chart-bar-accounts"></i>Registrasi Akun</span></div>
     <div class="public-chart-scroll"><svg class="public-stats-chart" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" role="img" aria-label="Grafik batang jumlah Buku Tamu dan Akun Terdaftar per tanggal">
       ${grid}<line x1="${left}" y1="${top}" x2="${left}" y2="${bottom}" class="public-chart-axis"/><line x1="${left}" y1="${bottom}" x2="${width - 12}" y2="${bottom}" class="public-chart-axis"/>
-      <text x="15" y="${top + plotHeight / 2}" class="public-chart-axis-title" text-anchor="middle" transform="rotate(-90 15 ${top + plotHeight / 2})">Jumlah Data (skala otomatis)</text>
-      ${bars}<text x="${(left + width - 12) / 2}" y="${height - 8}" class="public-chart-axis-title" text-anchor="middle">Tanggal: Tgl / Bulan / Thn</text>
+      <text x="15" y="${top + plotHeight / 2}" class="public-chart-axis-title" text-anchor="middle" transform="rotate(-90 15 ${top + plotHeight / 2})">Jumlah Data</text>
+      ${bars}<text x="${(left + width - 12) / 2}" y="${height - 8}" class="public-chart-axis-title" text-anchor="middle">Tanggal / Bulan / Tahun</text>
     </svg></div>
     <div id="public-stats-details" class="public-stats-details" aria-live="polite"><p class="text-sm text-slate-500">Pilih salah satu batang untuk membuka Riwayat Tamu dan Registrasi Akun pada tanggal tersebut.</p></div>
   </section>`;
