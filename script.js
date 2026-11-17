@@ -8507,7 +8507,8 @@ function renderFooterCooperationLogos(groups) {
 }
 
 function renderFooterProducts(rows) {
-  return (rows || [])
+  const chatShortcut = `<button type="button" class="footer-product-icon" data-brand="chat" style="--product-brand-color:#10b981" onclick="switchPublicSection('chat')" aria-label="Chat Publik" title="Chat Publik"><i class="fas fa-comments" aria-hidden="true"></i></button>`;
+  const productLinks = (rows || [])
     .filter(record => {
       const key = getFooterProductKey(record.Section);
       return key && key !== 'chat' && isFooterRecordActive(record);
@@ -8527,6 +8528,7 @@ function renderFooterProducts(rows) {
     return `<a class="footer-product-icon" data-brand="product" style="--product-brand-color:#2563eb" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">${logo}</a>`;
   })
   .join('');
+  return chatShortcut + productLinks;
 }
 
 async function openFooterCooperation(companyKey) {
