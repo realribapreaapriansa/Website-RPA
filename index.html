@@ -105,7 +105,7 @@
        <!-- BADGE STATUS OTENTIKASI -->
        <div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-blue-500/10 border border-blue-400/20 text-blue-400 text-[10px] sm:text-xs font-bold tracking-wider uppercase backdrop-blur-md shadow-inner">
           <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-          © 2026 Riba Prea Apriansa • Versi 1.0
+          <span id="splash-badge-text">© 2026 Riba Prea Apriansa • Versi 1.0</span>
        </div>
 
        <!-- DYNAMIC LOGO / AVATAR ICON -->
@@ -121,9 +121,9 @@
        <!-- HEADLINE & SUBTITLE -->
        <div class="space-y-3 px-2">
           <h1 class="text-2xl sm:text-3xl md:text-4xl font-black text-white tracking-tight leading-tight">
-             Ruang Digital <br><span class="bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-indigo-300 to-sky-400">Riba Prea Apriansa</span>
+             <span id="splash-heading-prefix">Ruang Digital</span><br><span id="splash-site-name" class="bg-clip-text text-transparent bg-gradient-to-r from-blue-400 via-indigo-300 to-sky-400">Riba Prea Apriansa</span>
           </h1>
-          <p class="text-slate-400 text-xs sm:text-sm font-normal max-w-md mx-auto leading-relaxed">
+          <p id="splash-description" class="text-slate-400 text-xs sm:text-sm font-normal max-w-md mx-auto leading-relaxed">
              Selamat datang di pameran digital saya yang menampilkan perjalanan karir, portfolio, project, blog, CV, dan pencapaian profesional lainnya. Silakan mengisi buku tamu untuk melanjutkan.
           </p>
        </div>
@@ -156,15 +156,15 @@
        <!-- ACTION BUTTON (MANUAL CLICK ONLY) -->
        <div class="pt-3 flex justify-center">
           <button onclick="skipSplash()" class="w-full sm:w-auto bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-600 hover:from-blue-500 hover:to-indigo-500 text-white font-extrabold px-9 py-4 rounded-2xl text-sm shadow-xl shadow-blue-600/30 transition-all hover:scale-105 active:scale-95 flex items-center justify-center gap-3 border border-white/20 cursor-pointer">
-             <span>Mulai Isi Buku Tamu</span>
-             <i class="fas fa-arrow-right text-xs"></i>
+             <span id="splash-button-text">Mulai Isi Buku Tamu</span>
+             <i id="splash-button-icon" class="fas fa-arrow-right text-xs"></i>
           </button>
        </div>
 
        <!-- STATUS KETENTUAN MASUK -->
        <div class="text-[10px] sm:text-[11px] text-slate-500 font-semibold tracking-wider uppercase pt-2 flex items-center justify-center gap-2">
           <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-          Sistem Siap • Silakan Tekan Tombol Untuk Lanjut
+          <span id="splash-status-text">Sistem Siap • Silakan Tekan Tombol Untuk Lanjut</span>
        </div>
     </div>
 
@@ -654,14 +654,7 @@
         </div>
         <div>
             <h4 class="text-white font-black mb-4 uppercase tracking-widest text-xs">Site Map</h4>
-            <nav class="footer-icon-nav" aria-label="Navigasi footer">
-                <button onclick="switchPublicSection('home')" class="footer-nav-icon" data-sec="home" aria-label="Home" title="Home"><i class="fas fa-house"></i></button>
-                <button onclick="switchPublicSection('portfolio')" class="footer-nav-icon" data-sec="portfolio" aria-label="Portfolio dan Career" title="Portfolio dan Career"><i class="fas fa-briefcase"></i></button>
-                <button onclick="switchPublicSection('documents')" class="footer-nav-icon" data-sec="documents" aria-label="CV dan Lamaran Kerja" title="CV &amp; Lamaran Kerja"><i class="fas fa-file-lines"></i></button>
-                <button onclick="switchPublicSection('gallery')" class="footer-nav-icon" data-sec="gallery" aria-label="Gallery" title="Gallery"><i class="fas fa-images"></i></button>
-                <button onclick="switchPublicSection('blog')" class="footer-nav-icon" data-sec="blog" aria-label="Blog" title="Blog"><i class="fas fa-newspaper"></i></button>
-                <button onclick="switchPublicSection('profile')" class="footer-nav-icon" data-sec="profile" aria-label="Profil" title="Profil"><i class="fas fa-user"></i></button>
-            </nav>
+            <nav id="footer-site-map" class="footer-icon-nav" aria-label="Navigasi footer"></nav>
         </div>
         <div>
             <h4 class="text-white font-black mb-4 uppercase tracking-widest text-xs">Follow</h4>

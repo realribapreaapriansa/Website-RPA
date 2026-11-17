@@ -460,6 +460,7 @@ input[type=number] {
     color: #cbd5e1;
     font-size: 1.05rem;
     cursor: pointer;
+    text-decoration: none;
     transition: color .18s ease, background-color .18s ease, border-color .18s ease;
 }
 

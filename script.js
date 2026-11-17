@@ -42,6 +42,29 @@ let faceAutoCaptureRunning = false;
 const FACE_MODEL_URL =
     'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights';
 
+const PUBLIC_CORE_MENU_ITEMS = [
+  { key: 'home', label: 'Home', icon: 'fa-house', position: 1 },
+  { key: 'portfolio', label: 'Portfolio dan Career', icon: 'fa-briefcase', position: 2 },
+  { key: 'documents', label: 'CV & Lamaran Kerja', icon: 'fa-file-lines', position: 3 },
+  { key: 'gallery', label: 'Gallery', icon: 'fa-images', position: 4 },
+  { key: 'blog', label: 'Blog', icon: 'fa-newspaper', position: 5 },
+  { key: 'profile', label: 'Profil', icon: 'fa-user', position: 6 }
+];
+const PUBLIC_CORE_MENU_ALIASES = {
+  home: 'home',
+  portfolio: 'portfolio',
+  portfoliodancareer: 'portfolio',
+  career: 'portfolio',
+  documents: 'documents',
+  cv: 'documents',
+  'cv&lamarankerja': 'documents',
+  cvdanlamarankerja: 'documents',
+  gallery: 'gallery',
+  blog: 'blog',
+  profile: 'profile',
+  profil: 'profile'
+};
+
 const ADMIN_BOTTOM_SECTIONS = [
   { id: 'home', label: 'Dashboard Utama', icon: 'fa-chart-pie' },
   { id: 'interactions', label: 'Interaksi', icon: 'fa-comments' },
@@ -53,40 +76,46 @@ const ADMIN_BOTTOM_SECTIONS = [
 const ADMIN_SECTION_GROUPS = {
   interactions: {
     title: 'Interaksi',
-    description: 'Kelola percakapan dan pemberitahuan website.',
-    groups: [{ title: 'Interaksi', items: [
-      { label: 'Chat', description: 'Buka inbox chat pengunjung.', icon: 'fa-comments', sheet: 'Live_Chat' },
-      { label: 'Notification', description: 'Kelola pemberitahuan untuk pengguna.', icon: 'fa-bell', sheet: 'Notifications' }
+    description: 'Kelola percakapan, pemberitahuan, newsletter, dan aktivitas Visitor.',
+    groups: [{ title: 'Pesan & Aktivitas', items: [
+      { label: 'Chat', description: 'Kirim, ubah, dan hapus pesan percakapan.', icon: 'fa-comments', sheet: 'Live_Chat', crud: false, capability: 'Kirim · Ubah · Hapus pesan' },
+      { label: 'Notification', description: 'Tambah, ubah, dan hapus pemberitahuan.', icon: 'fa-bell', sheet: 'Notifications' },
+      { label: 'Newsletter', description: 'Kelola data dan pesan newsletter.', icon: 'fa-envelope-open-text', sheet: 'Newsletter' },
+      { label: 'Bookmark Visitor', description: 'Kelola item yang disimpan oleh Visitor.', icon: 'fa-bookmark', sheet: 'Bookmarks' }
     ] }]
   },
   public: {
     title: 'Dashboard Publik',
-    description: 'Kelola konten dan tampilan yang dilihat pengunjung.',
+    description: 'Kelola seluruh konten, navigasi, tampilan, dan bagian footer website.',
     groups: [
       { title: 'Manajemen Konten', items: [
-        { label: 'Home', description: 'Judul dan deskripsi utama website.', icon: 'fa-house', sheet: 'Home' },
-        { label: 'Portofolio', description: 'Kelola portofolio profesional.', icon: 'fa-briefcase', sheet: 'Portfolio' },
-        { label: 'Career', description: 'Kelola riwayat karier.', icon: 'fa-briefcase-clock', sheet: 'Career_Timeline' },
-        { label: 'CV & Lamaran Kerja', description: 'Kelola dokumen profesional.', icon: 'fa-file-lines', sheet: 'Documents' },
-        { label: 'Gallery', description: 'Kelola foto dan media.', icon: 'fa-images', sheet: 'Gallery' },
-        { label: 'Blog', description: 'Kelola artikel website.', icon: 'fa-newspaper', sheet: 'Blog' },
-        { label: 'Profil', description: 'Kelola profil publik website.', icon: 'fa-user', sheet: 'Profile' }
+        { label: 'Home', description: 'Tambah, ubah, dan hapus konten halaman Home.', icon: 'fa-house', sheet: 'Home' },
+        { label: 'Portofolio', description: 'Kelola item portofolio profesional.', icon: 'fa-briefcase', sheet: 'Portfolio' },
+        { label: 'Career', description: 'Kelola riwayat dan perjalanan karier.', icon: 'fa-briefcase-clock', sheet: 'Career_Timeline' },
+        { label: 'CV & Lamaran Kerja', description: 'Kelola dokumen profesional yang ditampilkan.', icon: 'fa-file-lines', sheet: 'Documents' },
+        { label: 'Gallery', description: 'Kelola foto dan media galeri.', icon: 'fa-images', sheet: 'Gallery' },
+        { label: 'Blog', description: 'Kelola artikel dan publikasi website.', icon: 'fa-newspaper', sheet: 'Blog' },
+        { label: 'Profil', description: 'Kelola informasi profil publik website.', icon: 'fa-user', sheet: 'Profile' }
+      ] },
+      { title: 'Identitas & Tampilan Website', items: [
+        { label: 'Logo & Nama Website', description: 'Kelola logo, nama, favicon, dan pengaturan branding.', icon: 'fa-palette', sheet: 'Web_Branding' },
+        { label: 'Font Website', description: 'Kelola pengaturan font website yang tersedia.', icon: 'fa-font', sheet: 'Web_Branding' },
+        { label: 'Banner Website', description: 'Tambah, ubah, dan hapus banner publik.', icon: 'fa-image', sheet: 'Banners' },
+        { label: 'Pop-up Website', description: 'Kelola pop-up dan pengumuman publik.', icon: 'fa-window-restore', sheet: 'Popups' }
       ] },
       { title: 'Footer Atas', items: [
-        { label: 'Logo & Nama Website', description: 'Atur identitas dan tampilan website.', icon: 'fa-palette', sheet: 'Web_Branding' },
         { label: 'Fitur Reload', description: 'Muat ulang data terbaru dari server.', icon: 'fa-rotate', action: 'refresh' },
-        { label: 'Pusat Bantuan', description: 'Lihat panduan penggunaan website.', icon: 'fa-circle-question', action: 'help' },
-        { label: 'Login & Registrasi', description: 'Pratinjau portal akses Visitor.', icon: 'fa-right-to-bracket', action: 'auth' },
-        { label: 'Taskbar Menu', description: 'Atur menu navigasi website.', icon: 'fa-bars', sheet: 'Dynamic_Menu' }
+        { label: 'Taskbar Menu', description: 'Tambah, ubah, dan hapus item navigasi website.', icon: 'fa-bars', sheet: 'Dynamic_Menu' },
+        { label: 'Kelola Pusat Bantuan', description: 'Tambah, ubah, dan hapus panduan website.', icon: 'fa-circle-question', sheet: 'Bantuan' },
+        { label: 'Pratinjau Pusat Bantuan', description: 'Lihat tampilan pusat bantuan bagi pengguna.', icon: 'fa-book-open', action: 'help' },
+        { label: 'Login & Registrasi', description: 'Pratinjau portal akses Visitor.', icon: 'fa-right-to-bracket', action: 'auth', capability: 'Pratinjau portal' }
       ] },
       { title: 'Footer Bawah', description: 'Copyright ditampilkan otomatis pada footer website.', items: [
-        { label: 'Judul & Deskripsi Website', description: 'Atur konten identitas website.', icon: 'fa-heading', sheet: 'Home' },
-        { label: 'Contact', description: 'Atur email, nomor WhatsApp, dan alamat.', icon: 'fa-address-card', sheet: 'Contact' },
-        { label: 'Kerjasama', description: 'Atur logo dan tautan perusahaan kerja sama.', icon: 'fa-handshake', sheet: 'Footer' },
-        { label: 'Produk & Layanan', description: 'Atur daftar produk dan layanan.', icon: 'fa-box-open', sheet: 'Footer' },
-        { label: 'Tautan Follow', description: 'Atur tautan media sosial.', icon: 'fa-share-nodes', sheet: 'Footer' },
-        { label: 'Privacy Policy', description: 'Atur isi kebijakan privasi.', icon: 'fa-shield-halved', sheet: 'Privacy_Policy' },
-        { label: 'Terms & Conditions', description: 'Atur isi syarat dan ketentuan.', icon: 'fa-scale-balanced', sheet: 'Terms_Conditions' }
+        { label: 'Judul & Deskripsi Website', description: 'Kelola judul dan deskripsi yang tampil di footer.', icon: 'fa-heading', sheet: 'Home' },
+        { label: 'Contact', description: 'Kelola informasi kontak website.', icon: 'fa-address-card', sheet: 'Contact' },
+        { label: 'Kerjasama, Produk & Follow', description: 'Kelola logo kerjasama, produk, layanan, dan tautan Follow.', icon: 'fa-handshake', sheet: 'Footer', capability: 'Tambah · Ubah · Hapus' },
+        { label: 'Privacy Policy', description: 'Kelola isi kebijakan privasi.', icon: 'fa-shield-halved', sheet: 'Privacy_Policy' },
+        { label: 'Terms & Conditions', description: 'Kelola isi syarat dan ketentuan.', icon: 'fa-scale-balanced', sheet: 'Terms_Conditions' }
       ] }
     ]
   },
@@ -95,17 +124,18 @@ const ADMIN_SECTION_GROUPS = {
     description: 'Kelola pengaturan website dan data sistem.',
     groups: [
       { title: 'Pengaturan Website', items: [
-        { label: 'Kendali Buku Tamu', description: 'Atur status buka atau tutup buku tamu.', icon: 'fa-book-open', sheet: 'Web_Branding' }
+        { label: 'Kendali Buku Tamu', description: 'Atur status operasi atau mode pemeliharaan.', icon: 'fa-book-open', action: 'guestbook' }
       ] },
       { title: 'Pengaturan Umum', items: [
         { label: 'Flash Sebelum Buku Tamu', description: 'Atur tampilan awal dan kendali buku tamu website.', icon: 'fa-bolt', sheet: 'Web_Branding' },
         { label: 'Font Website', description: 'Atur font dan tampilan teks website.', icon: 'fa-font', sheet: 'Web_Branding' }
       ] },
       { title: 'Database', items: [
-        { label: 'System Logs', description: 'Lihat catatan aktivitas sistem.', icon: 'fa-list-check', sheet: 'System_Logs' },
-        { label: 'Visitor Attendance', description: 'Lihat data buku tamu.', icon: 'fa-clipboard-user', sheet: 'Visitor_Attendance' },
+        { label: 'System Logs', description: 'Kelola data catatan aktivitas sistem.', icon: 'fa-list-check', sheet: 'System_Logs' },
+        { label: 'Visitor Attendance', description: 'Kelola data buku tamu.', icon: 'fa-clipboard-user', sheet: 'Visitor_Attendance' },
         { label: 'Users', description: 'Kelola data akun Visitor.', icon: 'fa-users', sheet: 'Users' },
-        { label: 'Persetujuan Legal', description: 'Lihat persetujuan pengunjung.', icon: 'fa-file-signature', sheet: 'Visitor_Consents' }
+        { label: 'Persetujuan Legal', description: 'Kelola data persetujuan pengunjung.', icon: 'fa-file-signature', sheet: 'Visitor_Consents' },
+        { label: 'Analytics', description: 'Kelola data analitik website.', icon: 'fa-chart-line', sheet: 'Analytics' }
       ] }
     ]
   }
@@ -151,6 +181,14 @@ function isFooterMenuSection(section) {
     getFooterCooperationParts(section) ||
     getFooterProductKey(section)
   );
+}
+
+function normalizeDynamicMenuSection(section) {
+  return String(section || '').trim().toLowerCase().replace(/[\s_]+/g, '');
+}
+
+function getPublicCoreMenuKey(section) {
+  return PUBLIC_CORE_MENU_ALIASES[normalizeDynamicMenuSection(section)] || '';
 }
 
 function isFooterRecordActive(record) {
@@ -397,7 +435,42 @@ function applyWebBranding(data) {
   if (!data || data.length === 0) return;
   const activeSettings = data.find(s => s.Status === 'publish' || s.Status === 'active') || data[0];
 
-  if (activeSettings.Site_Name) document.title = activeSettings.Site_Name;
+  const siteName = safeText(activeSettings.Site_Name, '');
+  if (siteName) {
+    document.title = siteName;
+    document.querySelectorAll('.site-name').forEach(element => { element.textContent = siteName; });
+    const splashSiteName = document.getElementById('splash-site-name');
+    if (splashSiteName) splashSiteName.textContent = siteName;
+  }
+
+  const splashPrefix = safeText(activeSettings.Splash_Title || activeSettings.Welcome_Title, '');
+  const splashDescription = safeText(activeSettings.Splash_Description || activeSettings.Welcome_Description, '');
+  const splashBadgeText = safeText(activeSettings.Splash_Badge_Text, '');
+  const splashStatusText = safeText(activeSettings.Splash_Status_Text, '');
+  const splashHeadingElement = document.getElementById('splash-heading-prefix');
+  const splashDescriptionElement = document.getElementById('splash-description');
+  const splashBadgeElement = document.getElementById('splash-badge-text');
+  const splashStatusElement = document.getElementById('splash-status-text');
+  if (splashPrefix && splashHeadingElement) splashHeadingElement.textContent = splashPrefix;
+  if (splashDescription && splashDescriptionElement) splashDescriptionElement.textContent = splashDescription;
+  if (splashBadgeText && splashBadgeElement) splashBadgeElement.textContent = splashBadgeText;
+  if (splashStatusText && splashStatusElement) splashStatusElement.textContent = splashStatusText;
+
+  const fontFamily = safeText(activeSettings.Font_Family || activeSettings.Font_Name || activeSettings.FontFamily, '');
+  if (fontFamily && /^[a-z0-9 ,'-]+$/i.test(fontFamily)) {
+    document.body.style.fontFamily = `"${fontFamily.replace(/"/g, '')}", sans-serif`;
+  }
+  const fontUrl = safeUrl(activeSettings.Font_URL || activeSettings.Google_Font_URL || activeSettings.Font_Link);
+  let fontStylesheet = document.getElementById('dynamic-font-stylesheet');
+  if (fontUrl) {
+    if (!fontStylesheet) {
+      fontStylesheet = document.createElement('link');
+      fontStylesheet.id = 'dynamic-font-stylesheet';
+      fontStylesheet.rel = 'stylesheet';
+      document.head.appendChild(fontStylesheet);
+    }
+    fontStylesheet.href = fontUrl;
+  }
   if (activeSettings.Favicon_URL) {
      let favicon = document.getElementById('dynamic-favicon');
      if (favicon) { favicon.href = activeSettings.Favicon_URL; }
@@ -2697,9 +2770,48 @@ function closeModalForm() {
 /* ================================================================
    SUBMIT DATA (TAMBAH/EDIT DENGAN JEDA SIMPAN GOOGLE SHEETS)
    ================================================================ */
+async function refreshWebsiteAfterAdminChange(sheetName) {
+  const publicSections = {
+    Home: 'home',
+    Portfolio: 'portfolio',
+    Career_Timeline: 'career',
+    Documents: 'documents',
+    Gallery: 'gallery',
+    Blog: 'blog',
+    Contact: 'contact'
+  };
+
+  if (sheetName === 'Web_Branding') {
+    const branding = await getCachedData('Web_Branding', true);
+    applyWebBranding(branding.data || []);
+  }
+
+  if (publicSections[sheetName]) {
+    await renderPublicContent(false, publicSections[sheetName]);
+  }
+
+  if (['Home', 'Contact', 'Dynamic_Menu', 'Web_Branding'].includes(sheetName)) {
+    await renderDynamicFooter();
+  }
+
+  if (sheetName === 'Dynamic_Menu') await renderDynamicMenu();
+  if (sheetName === 'Banners') {
+    await getCachedData('Banners', true);
+    renderPublicBanners();
+  }
+  if (sheetName === 'Popups') {
+    await getCachedData('Popups', true);
+    renderPublicPopup();
+  }
+  if (sheetName === 'Bantuan' && !document.getElementById('help-modal')?.classList.contains('hidden')) {
+    await openHelpCenter();
+  }
+}
+
 async function submitData() {
   if (!memoryCache[activeModule]) return showToast('Modul belum siap.', 'warning');
-  const headers = memoryCache[activeModule].headers.slice(1);
+  const moduleName = activeModule;
+  const headers = memoryCache[moduleName].headers.slice(1);
   const data = {};
   headers.forEach(c => {
     const el = document.getElementById('inp-' + c);
@@ -2707,7 +2819,7 @@ async function submitData() {
   });
   const payload = {
     action: editingId ? 'update' : 'insert',
-    sheet: activeModule,
+    sheet: moduleName,
     user: currentUser ? currentUser.UserID : 'System',
     data: data
   };
@@ -2718,21 +2830,13 @@ async function submitData() {
     const r = await apiCall('POST', payload);
     if (r.status === 'success') {
       showToast(r.message || 'Data berhasil disimpan!', 'success');
-      setTimeout(async () => {
-          invalidateCache(activeModule);
-          await loadAdminModule(activeModule, true);
-          const related = ['Home', 'Profile', 'Contact', 'Portfolio', 'Blog', 'Career_Timeline', 'Documents', 'Gallery', 'Web_Branding', 'Dynamic_Menu', 'Banners', 'Popups'];
-          if (related.includes(activeModule)) {
-            related.forEach(x => invalidateCache(x));
-            await prefetchEssentialSheets();
-            renderPublicContent(false);
-            renderPublicBanners();
-            renderPublicPopup();
-            if (activeModule === 'Dynamic_Menu') {
-              await Promise.all([renderDynamicMenu(), renderDynamicFooter()]);
-            }
-          }
-      }, 1500);
+      invalidateCache(moduleName);
+      try {
+        if (activeModule === moduleName) await loadAdminModule(moduleName, true);
+        await refreshWebsiteAfterAdminChange(moduleName);
+      } catch (refreshError) {
+        console.warn(`Data ${moduleName} tersimpan, tetapi tampilan belum tersinkron:`, refreshError);
+      }
     } else {
       showToast(r.message || 'Gagal menyimpan data.', 'error');
     }
@@ -2773,15 +2877,19 @@ function applyWebBranding(data) {
   const isClosed = (gbStatus === 'close' || gbStatus === 'tutup' || gbStatus === 'maintenance');
   
   const splashBtn = document.querySelector('button[onclick="skipSplash()"]');
+  const splashButtonText = document.getElementById('splash-button-text');
+  const splashButtonIcon = document.getElementById('splash-button-icon');
   
   if (splashBtn) {
       splashBtn.disabled = false; // BUKA KUNCIAN TOMBOL
       
       if (isClosed) {
-          splashBtn.innerHTML = '<i class="fas fa-tools"></i> Masuk Mode Perbaikan/Update';
+          if (splashButtonText) splashButtonText.textContent = 'Masuk Mode Perbaikan/Update';
+          if (splashButtonIcon) splashButtonIcon.className = 'fas fa-tools text-xs';
           splashBtn.className = 'mt-6 bg-rose-600 hover:bg-rose-700 text-white px-8 py-3.5 rounded-full font-bold shadow-xl shadow-rose-600/30 transition-all flex items-center justify-center gap-2 mx-auto w-full sm:w-auto animate-pulse';
       } else {
-          splashBtn.innerHTML = 'Mulai Isi Buku Tamu <i class="fas fa-arrow-right"></i>';
+          if (splashButtonText) splashButtonText.textContent = safeText(activeSettings.Splash_Button_Text, 'Mulai Isi Buku Tamu');
+          if (splashButtonIcon) splashButtonIcon.className = 'fas fa-arrow-right text-xs';
           splashBtn.className = 'mt-6 bg-blue-600 hover:bg-blue-700 text-white px-8 py-3.5 rounded-full font-bold shadow-xl shadow-blue-600/30 transition-all flex items-center justify-center gap-2 mx-auto w-full sm:w-auto';
       }
   }
@@ -2882,6 +2990,7 @@ function renderView(view, section) {
       
       // Munculkan footer dinamis di dashboard publik.
       if (typeof renderDynamicFooter === 'function') renderDynamicFooter();
+      if (typeof renderDynamicMenu === 'function') renderDynamicMenu();
   }
 }
 
@@ -4426,47 +4535,60 @@ function renderPublicContact(r) {
    ================================================================ */
 async function renderDynamicMenu() {
   const res = await getCachedData('Dynamic_Menu');
-  const rows = (res.data || [])
-    .filter(x => !x.Status || x.Status === 'publish' || x.Status === 'active')
-    .sort((a, b) => Number(a.Position || 0) - Number(b.Position || 0));
+  const allRows = (res.data || []).slice().sort((a, b) => Number(a.Position || 0) - Number(b.Position || 0));
+  const rows = allRows.filter(row => isFooterRecordActive(row));
 
   const desktop = document.getElementById('public-desktop-menu');
   const mobile = document.getElementById('mobile-menu');
-  if (!desktop || !mobile) return;
+  const footerSiteMap = document.getElementById('footer-site-map');
 
-  const coreItems = [
-    { key: 'home', label: 'Home', icon: 'fa-house' },
-    { key: 'portfolio', label: 'Portfolio dan Career', icon: 'fa-briefcase' },
-    { key: 'documents', label: 'CV & Lamaran Kerja', icon: 'fa-file-lines' },
-    { key: 'gallery', label: 'Gallery', icon: 'fa-images' },
-    { key: 'blog', label: 'Blog', icon: 'fa-newspaper' },
-    { key: 'profile', label: 'Profil', icon: 'fa-user' }
-  ];
+  const coreItems = PUBLIC_CORE_MENU_ITEMS.map(item => ({ ...item }));
   const coreKeys = new Set(coreItems.map(item => item.key));
-  const excludedKeys = new Set(['career', 'careertimeline', 'chat', 'contact', 'profile', 'profil', 'cv', 'cvlamaran', 'cvdanlamarankerja', 'cv&lamarankerja', 'lamaran']);
+  const coreOverrides = new Map();
+  allRows.forEach(row => {
+    if (isFooterMenuSection(row.Section)) return;
+    const key = getPublicCoreMenuKey(row.Section);
+    if (key) coreOverrides.set(key, row);
+  });
+  const managedCoreItems = coreItems.map(item => {
+    const override = coreOverrides.get(item.key);
+    if (!override) return item;
+    if (!isFooterRecordActive(override)) return null;
+    const icon = safeText(override.Icon, item.icon);
+    return {
+      ...item,
+      label: safeText(override.Label, item.label),
+      icon: /^[a-z0-9\s-]+$/i.test(icon) ? icon : item.icon,
+      position: Number(override.Position || item.position)
+    };
+  }).filter(Boolean);
+  const excludedKeys = new Set(['career', 'careertimeline', 'chat', 'contact', 'cv', 'cvlamaran', 'cvdanlamarankerja', 'cv&lamarankerja', 'lamaran']);
   const customItems = rows.map(row => {
     const rawSection = String(row.Section || '').trim();
     if (isFooterMenuSection(rawSection)) return null;
-    const key = rawSection.toLowerCase().replace(/[\s_]+/g, '');
+    const normalizedKey = normalizeDynamicMenuSection(rawSection);
+    const key = rawSection.toLowerCase().replace(/_/g, ' ');
     const label = safeText(row.Label, rawSection || 'Menu');
     const url = safeUrl(row.URL);
-    if (!key || excludedKeys.has(key) || coreKeys.has(key)) return null;
-    return { key: rawSection.toLowerCase().replace(/_/g, ' '), label, icon: 'fa-link', url };
+    if (!normalizedKey || excludedKeys.has(normalizedKey) || coreKeys.has(normalizedKey) || getPublicCoreMenuKey(rawSection)) return null;
+    const icon = safeText(row.Icon, 'fa-link');
+    return { key, label, icon: /^[a-z0-9\s-]+$/i.test(icon) ? icon : 'fa-link', url, position: Number(row.Position || 100) };
   }).filter(Boolean);
 
-  const items = [...coreItems, ...customItems];
-  const build = isMobile => items.map(item => {
+  const items = [...managedCoreItems, ...customItems].sort((a, b) => Number(a.position || 0) - Number(b.position || 0));
+  const build = (isMobile, isFooter = false) => items.map(item => {
     const icon = `<i class="fas ${item.icon}" aria-hidden="true"></i>`;
     const accessibilityLabel = escapeHtml(item.label);
-    const itemClass = isMobile ? 'mobile-menu-custom' : 'nav-btn nav-icon-btn';
+    const itemClass = isFooter ? 'footer-nav-icon' : (isMobile ? 'mobile-menu-custom' : 'nav-btn nav-icon-btn');
     if (item.url) {
       return `<a href="${item.url}" target="_blank" rel="noopener" class="${itemClass}" aria-label="${accessibilityLabel}" title="${accessibilityLabel}">${icon}<span class="sr-only">${accessibilityLabel}</span></a>`;
     }
     return `<button onclick="switchPublicSection(this.dataset.sec)" data-sec="${escapeHtml(item.key)}" aria-label="${accessibilityLabel}" title="${accessibilityLabel}" class="${itemClass}">${icon}<span class="sr-only">${accessibilityLabel}</span></button>`;
   }).join('');
 
-  desktop.innerHTML = build(false);
-  mobile.innerHTML = build(true);
+  if (desktop) desktop.innerHTML = build(false);
+  if (mobile) mobile.innerHTML = build(true);
+  if (footerSiteMap) footerSiteMap.innerHTML = build(false, true);
 }
 /* ================================================================
    PUBLIC BANNERS
@@ -4904,12 +5026,15 @@ function renderAdminFeatureCard(item) {
   else if (item.action === 'refresh') clickHandler = 'refreshManual(this)';
   else if (item.action === 'help') clickHandler = 'openHelpCenter()';
   else if (item.action === 'auth') clickHandler = 'previewAuthPortal()';
+  else if (item.action === 'guestbook') clickHandler = "loadAdminModule('Guestbook_Control')";
   if (!clickHandler) return '';
+  const capability = item.capability || (item.sheet && item.crud !== false ? 'Tambah · Ubah · Hapus' : '');
 
   return `<button type="button" onclick="${clickHandler}" class="group w-full min-h-[104px] rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400">
     <span class="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600 transition-colors group-hover:bg-blue-600 group-hover:text-white"><i class="fas ${escapeHtml(item.icon || 'fa-folder')}" aria-hidden="true"></i></span>
     <span class="block text-sm font-black text-slate-800">${escapeHtml(item.label)}</span>
     <span class="mt-1 block text-xs leading-relaxed text-slate-500">${escapeHtml(item.description || '')}</span>
+    ${capability ? `<span class="mt-3 inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-black text-slate-500">${escapeHtml(capability)}</span>` : ''}
   </button>`;
 }
 
@@ -5027,13 +5152,254 @@ function closeLoginPortal() {
   history.back();
 }
 
+function renderAdminGuestbookControl(result) {
+  const panel = document.getElementById('welcome-panel');
+  if (!panel) return;
+
+  const rows = result?.data || [];
+  const record = rows.find(row => row.Status === 'publish' || row.Status === 'active') || rows[0];
+  const idField = result?.headers?.[0] || 'BrandingID';
+  const recordId = safeText(record?.[idField] || record?.id, '');
+  const status = String(record?.Guestbook_Status || 'Open').trim().toLowerCase();
+  const isClosed = ['close', 'closed', 'tutup', 'maintenance'].includes(status);
+  const statusLabel = isClosed ? 'Tutup · Mode Pemeliharaan' : 'Buka · Operasi';
+
+  panel.classList.remove('hidden');
+  panel.innerHTML = `<section data-guestbook-control data-record-id="${escapeHtml(recordId)}" data-id-field="${escapeHtml(idField)}" data-status="${isClosed ? 'Close' : 'Open'}" class="mx-auto w-full max-w-3xl space-y-5 animate-fade-in">
+    <header><p class="text-xs font-black uppercase tracking-widest text-blue-600">Dashboard Admin · Pengaturan Website</p><h2 class="mt-1 text-2xl font-black text-slate-900 sm:text-3xl">Kendali Buku Tamu</h2></header>
+    <div class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-7">
+      <p class="text-xs font-black uppercase tracking-wider text-slate-400">Status Saat Ini</p>
+      <p class="mt-2 text-lg font-black ${isClosed ? 'text-rose-600' : 'text-emerald-600'}">${statusLabel}</p>
+    </div>
+    <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <button type="button" onclick="saveGuestbookControl('Close', this)" ${recordId ? '' : 'disabled'} class="min-h-16 rounded-2xl border border-rose-200 bg-white px-5 py-4 text-sm font-black text-rose-700 shadow-sm transition-colors hover:bg-rose-600 hover:text-white disabled:cursor-not-allowed"><i class="fas fa-screwdriver-wrench mr-2"></i>Tutup (Mode Pemeliharaan)</button>
+      <button type="button" onclick="saveGuestbookControl('Open', this)" ${recordId ? '' : 'disabled'} class="min-h-16 rounded-2xl border border-emerald-200 bg-white px-5 py-4 text-sm font-black text-emerald-700 shadow-sm transition-colors hover:bg-emerald-600 hover:text-white disabled:cursor-not-allowed"><i class="fas fa-door-open mr-2"></i>Buka (Operasi)</button>
+    </div>
+    ${recordId ? '' : '<p class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs font-bold text-amber-800">Data Web Branding belum tersedia, jadi status buku tamu belum dapat diubah.</p>'}
+  </section>`;
+}
+
+async function saveGuestbookControl(status, button) {
+  const panel = button?.closest('[data-guestbook-control]');
+  const recordId = panel?.dataset.recordId?.trim();
+  if (!panel || !recordId) return showToast('Data kendali buku tamu tidak ditemukan.', 'error');
+
+  const requestedStatus = status === 'Close' ? 'Close' : 'Open';
+  if (panel.dataset.status === requestedStatus) {
+    return showToast(requestedStatus === 'Close' ? 'Buku tamu sudah dalam mode pemeliharaan.' : 'Buku tamu sudah dalam status operasi.', 'info');
+  }
+
+  const cachedBranding = memoryCache.Web_Branding;
+  const idField = panel.dataset.idField || cachedBranding?.headers?.[0] || 'BrandingID';
+  const previousRows = cachedBranding?.data || [];
+  const updatedRows = previousRows.map(row => String(row[idField] || row.id || '') === recordId
+    ? { ...row, Guestbook_Status: requestedStatus }
+    : row);
+  const optimisticResult = { headers: cachedBranding?.headers || [idField], data: updatedRows };
+
+  toggleLoader(true);
+  try {
+    const result = await apiCall('POST', {
+      action: 'update',
+      sheet: 'Web_Branding',
+      user: currentUser?.UserID || 'System',
+      data: { id: recordId, Guestbook_Status: requestedStatus }
+    });
+
+    if (result?.status !== 'success') {
+      showToast(result?.message || 'Status buku tamu gagal diperbarui.', 'error');
+      return;
+    }
+
+    invalidateCache('Web_Branding');
+    try {
+      const refreshed = await getCachedData('Web_Branding', true);
+      applyWebBranding(refreshed.data || []);
+      renderAdminGuestbookControl(refreshed);
+    } catch (refreshError) {
+      applyWebBranding(updatedRows);
+      renderAdminGuestbookControl(optimisticResult);
+    }
+    showToast(requestedStatus === 'Close' ? 'Buku tamu ditutup. Mode pemeliharaan aktif.' : 'Buku tamu dibuka. Operasi aktif.', 'success');
+  } catch (error) {
+    showToast(error.message || 'Status buku tamu gagal diperbarui.', 'error');
+  } finally {
+    toggleLoader(false);
+  }
+}
+
+function buildAdminDynamicMenuRow(record = {}) {
+  const menuId = escapeHtml(safeText(record._menuId, ''));
+  const section = escapeHtml(safeText(record.Section, ''));
+  const label = escapeHtml(safeText(record.Label, ''));
+  const icon = escapeHtml(safeText(record.Icon, ''));
+  const url = escapeHtml(safeText(record.URL, ''));
+  const position = Number(record.Position || 1);
+  const isCore = record.__core === true;
+  const isEnabled = typeof record.__enabled === 'boolean' ? record.__enabled : isFooterRecordActive(record);
+  const kind = isCore ? 'Menu website' : 'Menu tambahan';
+
+  return `<div data-admin-dynamic-menu-row data-menu-id="${menuId}" data-menu-section="${section}" data-core-menu="${isCore ? 'true' : 'false'}" class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+    <div class="mb-4 flex items-center justify-between gap-3"><span class="text-xs font-black uppercase tracking-widest text-slate-500">${kind}</span><button type="button" onclick="removeAdminDynamicMenuRow(this)" class="text-xs font-bold text-rose-600 hover:text-rose-700">Hapus dari menu</button></div>
+    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <label class="block text-xs font-bold text-slate-700">Nama Menu<input type="text" data-menu-label value="${label}" placeholder="Nama yang tampil di menu" class="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-3.5 text-sm font-normal outline-none focus:border-blue-500"></label>
+      <label class="block text-xs font-bold text-slate-700">Kunci / Section<input type="text" data-menu-section value="${section}" ${isCore ? 'readonly' : ''} placeholder="contoh: layanan-saya" class="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-3.5 text-sm font-normal outline-none focus:border-blue-500 ${isCore ? 'cursor-not-allowed opacity-70' : ''}"></label>
+      <label class="block text-xs font-bold text-slate-700">Ikon Font Awesome<input type="text" data-menu-icon value="${icon}" placeholder="fas fa-link" class="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-3.5 text-sm font-normal outline-none focus:border-blue-500"></label>
+      <label class="block text-xs font-bold text-slate-700">URL Tujuan<input type="url" data-menu-url value="${url}" ${isCore ? 'disabled' : ''} placeholder="https://" class="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-3.5 text-sm font-normal outline-none focus:border-blue-500 ${isCore ? 'cursor-not-allowed opacity-70' : ''}"></label>
+      <label class="block text-xs font-bold text-slate-700">Urutan Tampil<input type="number" data-menu-position min="1" step="1" value="${position}" class="mt-1 w-full rounded-xl border border-slate-200 bg-slate-50 p-3.5 text-sm font-normal outline-none focus:border-blue-500"></label>
+      <label class="flex items-center gap-2 self-end pb-3 text-xs font-bold text-slate-700"><input type="checkbox" data-menu-enabled ${isEnabled ? 'checked' : ''} class="h-4 w-4 accent-blue-600">Tampilkan di menu</label>
+    </div>
+  </div>`;
+}
+
+function addAdminDynamicMenuRow() {
+  const list = document.getElementById('admin-dynamic-menu-list');
+  if (list) list.insertAdjacentHTML('beforeend', buildAdminDynamicMenuRow({ __enabled: false, Position: list.children.length + 1 }));
+}
+
+function removeAdminDynamicMenuRow(button) {
+  const row = button?.closest('[data-admin-dynamic-menu-row]');
+  if (!row) return;
+  if (row.dataset.menuId || row.dataset.coreMenu === 'true') {
+    row.dataset.removed = 'true';
+    row.classList.add('hidden');
+  } else {
+    row.remove();
+  }
+}
+
+function renderAdminDynamicMenuEditor(result) {
+  const panel = document.getElementById('welcome-panel');
+  if (!panel) return;
+
+  const idField = result?.headers?.[0] || 'MenuID';
+  const allRows = result?.data || [];
+  const editableRows = allRows.filter(row => !isFooterMenuSection(row.Section));
+  const coreRows = new Map();
+  const customRows = [];
+  editableRows.forEach(row => {
+    const coreKey = getPublicCoreMenuKey(row.Section);
+    if (coreKey) coreRows.set(coreKey, row);
+    else customRows.push({ ...row, _menuId: safeText(row[idField], '') });
+  });
+
+  const coreItems = PUBLIC_CORE_MENU_ITEMS.map(item => {
+    const stored = coreRows.get(item.key);
+    return {
+      ...item,
+      ...(stored || {}),
+      _menuId: safeText(stored?.[idField], ''),
+      Section: item.key,
+      Label: safeText(stored?.Label, item.label),
+      Icon: safeText(stored?.Icon, item.icon),
+      URL: '',
+      Position: safeText(stored?.Position, String(item.position)),
+      Status: stored?.Status || 'publish',
+      __core: true,
+      __enabled: stored ? isFooterRecordActive(stored) : true
+    };
+  });
+  customRows.sort((a, b) => Number(a.Position || 0) - Number(b.Position || 0));
+
+  panel.classList.remove('hidden');
+  panel.innerHTML = `<form data-admin-dynamic-menu-editor data-id-field="${escapeHtml(idField)}" class="mx-auto w-full max-w-6xl space-y-6 animate-fade-in">
+    <header class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><p class="text-xs font-black uppercase tracking-widest text-blue-600">Dashboard Publik · Footer Atas</p><h2 class="mt-1 text-2xl font-black text-slate-900 sm:text-3xl">Taskbar & Site Map</h2><p class="mt-2 max-w-2xl text-sm text-slate-500">Kelola menu utama, urutan, ikon, dan tautan tambahan. Menu utama mengarah ke bagian website; menu tambahan memerlukan URL.</p></div><button type="button" onclick="addAdminDynamicMenuRow()" class="inline-flex items-center justify-center gap-2 rounded-xl bg-blue-50 px-4 py-3 text-xs font-black text-blue-700 hover:bg-blue-100"><i class="fas fa-plus"></i>Tambah Menu</button></header>
+    <section class="space-y-3"><div><h3 class="text-lg font-black text-slate-900">Menu Utama Website</h3><p class="mt-1 text-xs text-slate-500">Tombol ini dipakai pada Taskbar dan Site Map footer.</p></div><div id="admin-dynamic-core-menu-list" class="space-y-3">${coreItems.map(buildAdminDynamicMenuRow).join('')}</div></section>
+    <section class="space-y-3"><div><h3 class="text-lg font-black text-slate-900">Menu Tambahan</h3><p class="mt-1 text-xs text-slate-500">Gunakan URL publik untuk membuat tautan halaman atau layanan tambahan.</p></div><div id="admin-dynamic-menu-list" class="space-y-3">${customRows.map(buildAdminDynamicMenuRow).join('')}</div></section>
+    <div class="flex justify-end"><button type="button" onclick="saveAdminDynamicMenu(this)" class="w-full rounded-xl bg-blue-600 px-6 py-3.5 text-sm font-black text-white shadow-lg shadow-blue-600/20 hover:bg-blue-700 sm:w-auto"><i class="fas fa-floppy-disk mr-2"></i>Simpan Menu Website</button></div>
+  </form>`;
+}
+
+async function saveAdminDynamicMenu(button) {
+  const form = button?.closest('[data-admin-dynamic-menu-editor]');
+  if (!form) return showToast('Form Taskbar & Site Map tidak ditemukan.', 'error');
+
+  const idField = form.dataset.idField || 'MenuID';
+  const updates = [];
+  const usedSections = new Set();
+  const rows = Array.from(form.querySelectorAll('[data-admin-dynamic-menu-row]'));
+  const newSection = row => row.dataset.coreMenu === 'true'
+    ? row.dataset.menuSection.trim()
+    : (row.querySelector('[data-menu-section]')?.value.trim() || '').replace(/\s+/g, '_');
+
+  for (const [index, row] of rows.entries()) {
+    const core = row.dataset.coreMenu === 'true';
+    const menuId = row.dataset.menuId.trim();
+    const section = newSection(row);
+    const label = row.querySelector('[data-menu-label]')?.value.trim() || '';
+    const icon = row.querySelector('[data-menu-icon]')?.value.trim() || '';
+    const urlRaw = core ? '' : (row.querySelector('[data-menu-url]')?.value.trim() || '');
+    const url = safeUrl(urlRaw);
+    const enabled = row.dataset.removed !== 'true' && Boolean(row.querySelector('[data-menu-enabled]')?.checked);
+    const position = Math.max(1, Number(row.querySelector('[data-menu-position]')?.value || index + 1));
+
+    if (!core && row.dataset.removed === 'true') {
+      if (menuId) updates.push({ action: 'update', data: { id: menuId, Status: 'draft' } });
+      continue;
+    }
+    if (!core && !menuId && !label && !section && !icon && !urlRaw) continue;
+    if (!section || !label) return showToast('Setiap menu perlu Nama Menu dan Kunci/Section.', 'error');
+    if (icon && !/^[a-z0-9\s-]+$/i.test(icon)) return showToast(`Ikon menu ${label} harus berupa kelas Font Awesome.`, 'error');
+    if (urlRaw && !url) return showToast(`URL menu ${label} tidak valid.`, 'error');
+    if (!core && enabled && !url) return showToast(`Isi URL tujuan untuk menu tambahan ${label}.`, 'error');
+    if (!core && getPublicCoreMenuKey(section)) return showToast('Gunakan baris Menu Utama untuk mengatur menu bawaan website.', 'error');
+    if (isFooterMenuSection(section)) return showToast('Section footer dikelola melalui menu Footer Bawah.', 'error');
+
+    const normalized = normalizeDynamicMenuSection(section);
+    if (usedSections.has(normalized)) return showToast('Kunci/Section menu harus unik.', 'error');
+    usedSections.add(normalized);
+
+    updates.push({
+      action: menuId ? 'update' : 'insert',
+      data: {
+        ...(menuId ? { id: menuId } : {}),
+        Label: label,
+        Section: section,
+        Icon: icon,
+        URL: url,
+        Position: String(position),
+        Status: enabled ? 'publish' : 'draft'
+      }
+    });
+  }
+
+  if (!updates.length) return showToast('Belum ada perubahan menu untuk disimpan.', 'warning');
+  toggleLoader(true);
+  try {
+    for (const update of updates) {
+      const result = await apiCall('POST', {
+        action: update.action,
+        sheet: 'Dynamic_Menu',
+        user: currentUser?.UserID || 'System',
+        data: update.data
+      });
+      if (result?.status !== 'success') throw new Error(result?.message || 'Menu website gagal disimpan.');
+    }
+
+    invalidateCache('Dynamic_Menu');
+    const refreshed = await getCachedData('Dynamic_Menu', true);
+    await Promise.all([renderDynamicMenu(), renderDynamicFooter()]);
+    await loadAdminModule('Dynamic_Menu', true);
+    showToast('Taskbar dan Site Map berhasil diperbarui.', 'success');
+    return refreshed;
+  } catch (error) {
+    invalidateCache('Dynamic_Menu');
+    await loadAdminModule('Dynamic_Menu', true);
+    showToast(error.message || 'Menu website gagal disimpan.', 'error');
+    return false;
+  } finally {
+    toggleLoader(false);
+  }
+}
+
 async function loadAdminModule(sheetName, force = false) {
   activeModule = sheetName;
   if (sheetName !== 'Live_Chat') stopAdminChatSync();
 
-  const publicModules = ['Home', 'Profile', 'Contact', 'Portfolio', 'Career_Timeline', 'Documents', 'Gallery', 'Blog', 'Dynamic_Menu', 'Footer', 'Privacy_Policy', 'Terms_Conditions'];
-  const adminModules = ['System_Logs', 'Visitor_Attendance', 'Users', 'Visitor_Consents'];
-  if (['Live_Chat', 'Notifications'].includes(sheetName)) activeAdminSection = 'interactions';
+  const publicModules = ['Home', 'Profile', 'Contact', 'Portfolio', 'Career_Timeline', 'Documents', 'Gallery', 'Blog', 'Web_Branding', 'Dynamic_Menu', 'Banners', 'Popups', 'Bantuan', 'Footer', 'Privacy_Policy', 'Terms_Conditions'];
+  const interactionModules = ['Live_Chat', 'Notifications', 'Newsletter', 'Bookmarks'];
+  const adminModules = ['Guestbook_Control', 'System_Logs', 'Visitor_Attendance', 'Users', 'Visitor_Consents', 'Analytics'];
+  if (interactionModules.includes(sheetName)) activeAdminSection = 'interactions';
   else if (sheetName === 'Web_Branding') {
     if (!['public', 'admin'].includes(activeAdminSection)) activeAdminSection = 'public';
   } else if (publicModules.includes(sheetName)) activeAdminSection = 'public';
@@ -5050,6 +5416,42 @@ async function loadAdminModule(sheetName, force = false) {
   // Hapus UI Chat Admin jika sebelumnya ada
   const existingChat = document.getElementById('admin-live-chat-panel');
   if (existingChat) existingChat.remove();
+
+  if (sheetName === 'Guestbook_Control') {
+    if (welcomePanel) {
+      welcomePanel.classList.remove('hidden');
+      welcomePanel.innerHTML = '<div class="data-loading"><div class="data-loading-inner"><span class="data-loading-spinner"></span><span>Memuat kendali buku tamu...</span></div></div>';
+    }
+    tablePanel.classList.add('hidden');
+    if (addButton) addButton.classList.add('hidden');
+
+    try {
+      const result = await getCachedData('Web_Branding', force);
+      renderAdminGuestbookControl(result);
+    } catch (error) {
+      if (welcomePanel) welcomePanel.innerHTML = '<div class="mx-auto max-w-3xl rounded-3xl border border-rose-200 bg-rose-50 p-8 text-center font-bold text-rose-700">Kendali buku tamu tidak dapat dimuat. Periksa koneksi lalu coba lagi.</div>';
+      showToast(error.message || 'Gagal memuat kendali buku tamu.', 'error');
+    }
+    return;
+  }
+
+  if (sheetName === 'Dynamic_Menu') {
+    if (welcomePanel) {
+      welcomePanel.classList.remove('hidden');
+      welcomePanel.innerHTML = '<div class="data-loading"><div class="data-loading-inner"><span class="data-loading-spinner"></span><span>Memuat Taskbar & Site Map...</span></div></div>';
+    }
+    tablePanel.classList.add('hidden');
+    if (addButton) addButton.classList.add('hidden');
+
+    try {
+      const result = await getCachedData('Dynamic_Menu', force);
+      renderAdminDynamicMenuEditor(result);
+    } catch (error) {
+      if (welcomePanel) welcomePanel.innerHTML = '<div class="mx-auto max-w-3xl rounded-3xl border border-rose-200 bg-rose-50 p-8 text-center font-bold text-rose-700">Taskbar & Site Map tidak dapat dimuat. Periksa koneksi lalu coba lagi.</div>';
+      showToast(error.message || 'Gagal memuat Taskbar & Site Map.', 'error');
+    }
+    return;
+  }
 
     if (sheetName === 'Footer') {
       if (welcomePanel) {
@@ -5092,11 +5494,33 @@ async function loadAdminModule(sheetName, force = false) {
   
   // Tampilkan tabel standar dan ambil data untuk modul terpilih.
   tablePanel.classList.remove('hidden');
-  if (moduleTitle) moduleTitle.textContent = sheetName.replace(/_/g, ' ');
-
-  const readOnlyModules = ['System_Logs', 'Analytics', 'Visitor_Attendance', 'Visitor_Consents'];
-  const readOnly = readOnlyModules.includes(sheetName);
-  if (addButton) addButton.classList.toggle('hidden', readOnly);
+  const moduleTitles = {
+    Home: 'Konten Home',
+    Profile: 'Profil Publik',
+    Contact: 'Contact Website',
+    Portfolio: 'Portofolio',
+    Career_Timeline: 'Career',
+    Documents: 'CV & Lamaran Kerja',
+    Gallery: 'Gallery',
+    Blog: 'Blog',
+    Web_Branding: 'Logo, Nama & Pengaturan Website',
+    Dynamic_Menu: 'Taskbar Menu',
+    Banners: 'Banner Website',
+    Popups: 'Pop-up Website',
+    Bantuan: 'Pusat Bantuan',
+    Privacy_Policy: 'Privacy Policy',
+    Terms_Conditions: 'Terms & Conditions',
+    Notifications: 'Notification',
+    Newsletter: 'Newsletter',
+    Bookmarks: 'Bookmark Visitor',
+    System_Logs: 'System Logs',
+    Visitor_Attendance: 'Visitor Attendance',
+    Visitor_Consents: 'Persetujuan Legal',
+    Users: 'Users',
+    Analytics: 'Analytics'
+  };
+  if (moduleTitle) moduleTitle.textContent = moduleTitles[sheetName] || sheetName.replace(/_/g, ' ');
+  if (addButton) addButton.classList.remove('hidden');
 
   const tbody = document.getElementById('admin-tbody');
   if (tbody) {
@@ -5594,15 +6018,6 @@ function renderAdminTable(
     return;
   }
 
-  const ro = [
-    'System_Logs',
-    'Analytics',
-    'Visitor_Attendance',
-    'Visitor_Consents'
-  ].includes(
-    activeModule
-  );
-
   tbody.innerHTML =
     rows
       .map(
@@ -5721,12 +6136,7 @@ function renderAdminTable(
 
           let act;
 
-          if (ro) {
-
-            act =
-              '<span class="text-xs font-bold text-slate-300">Read Only</span>';
-
-          } else if (trash) {
+          if (trash) {
 
             act =
               `<button
@@ -5819,12 +6229,12 @@ function openEditById(
    ================================================================ */
 async function actionData(id, actionType) {
   if (!confirm(actionType === 'softDelete' ? 'Pindahkan data ini ke tempat sampah?' : 'Pulihkan data ini?')) return;
-  
+  const moduleName = activeModule;
   toggleLoader(true);
   try {
     const r = await apiCall('POST', {
       action: actionType,
-      sheet: activeModule,
+      sheet: moduleName,
       user: currentUser ? currentUser.UserID : 'System',
       data: { id: String(id) } // Pastikan ID dikirim sebagai string murni
     });
@@ -5833,21 +6243,9 @@ async function actionData(id, actionType) {
       showToast(r.message || 'Aksi berhasil dilakukan!', 'success');
       
       // Hapus Cache Modul Ini Secara Paksa
-      invalidateCache(activeModule);
-      
-      // Tarik ulang data asli dari Google Sheets setelah penghapusan
-      setTimeout(async () => {
-         await loadAdminModule(activeModule, true);
-         
-         const related = ['Home', 'Profile', 'Contact', 'Portfolio', 'Blog', 'Career_Timeline', 'Documents', 'Gallery', 'Web_Branding', 'Dynamic_Menu', 'Banners', 'Popups'];
-         if (related.includes(activeModule)) {
-            related.forEach(x => invalidateCache(x));
-            if (typeof renderPublicContent === 'function') renderPublicContent(false);
-            if (activeModule === 'Dynamic_Menu') {
-              await Promise.all([renderDynamicMenu(), renderDynamicFooter()]);
-            }
-         }
-      }, 500); // Beri jeda 0.5 detik agar Sheets di server selesai bekerja
+      invalidateCache(moduleName);
+      if (activeModule === moduleName) await loadAdminModule(moduleName, true);
+      await refreshWebsiteAfterAdminChange(moduleName);
     } else {
       showToast(r.message || 'Gagal menghapus data di server.', 'error');
     }
@@ -5866,7 +6264,10 @@ const splashObserver = new MutationObserver((mutations, obs) => {
     const btn = document.querySelector('button[onclick="skipSplash()"]');
     if (btn && !btn.disabled) {
         btn.disabled = true; // Kunci tombol 100% instan
-        btn.innerHTML = '<i class="fas fa-circle-notch fa-spin"></i> Menyiapkan...';
+      const buttonText = btn.querySelector('#splash-button-text');
+      const buttonIcon = btn.querySelector('#splash-button-icon');
+      if (buttonText) buttonText.textContent = 'Menyiapkan...';
+      if (buttonIcon) buttonIcon.className = 'fas fa-circle-notch fa-spin text-xs';
         btn.className = 'mt-6 bg-slate-200 text-slate-400 border border-slate-300 px-8 py-3.5 rounded-full font-bold flex items-center justify-center gap-2 mx-auto w-full sm:w-auto cursor-not-allowed transition-all';
         obs.disconnect(); // Hentikan pantauan setelah tombol berhasil dikunci
     }
@@ -8243,7 +8644,18 @@ async function refreshCurrentData(isSilent = false) {
    HELPER STATISTIK KOMUNITAS (PENGELOMPOKAN TANGGAL OTOMATIS)
    ================================================================ */
 function getWaktu(item) {
-   return item.Timestamp || item.Waktu || item.Tanggal || item.Date || item.Created_At || item.WAKTU || item.TANGGAL || 'Tanpa Tanggal';
+   return item.Timestamp ||
+      item.Waktu ||
+      item.Tanggal ||
+      item.Date ||
+      item.CreatedAt ||
+      item.Created_At ||
+      item.RegisteredAt ||
+      item.RegistrationDate ||
+      item.Registration_Date ||
+      item.WAKTU ||
+      item.TANGGAL ||
+      'Tanpa Tanggal';
 }
 
 function buildAccordionList(dataArray, type) {
@@ -8737,16 +9149,76 @@ function renderChatBubbles(chats) {
         if (identity.Role === 'SuperAdmin' && c.Sender_Role === 'SuperAdmin') isMe = true;
         else if (c.Sender_Name === identity.FullName || c.Sender_ID === identity.UserID || c.Sender_Email === identity.Email) isMe = true;
         const time = String(c.Timestamp || '').split(' ')[1] || '';
+        const chatIdField = memoryCache.Live_Chat?.headers?.[0] || 'ChatID';
+        const chatId = safeText(c[chatIdField] || c.ChatID || c.MessageID || c.ID, '');
+        const adminActions = identity.Role === 'SuperAdmin' && chatId
+          ? `<span class="ml-2 inline-flex items-center gap-2"><button type="button" onclick="editChatMessage(this)" data-chat-id="${escapeHtml(chatId)}" data-message="${escapeHtml(safeText(c.Message, ''))}" class="font-black underline decoration-dotted" aria-label="Ubah pesan" title="Ubah pesan">Ubah</button><button type="button" onclick="deleteChatMessage(this)" data-chat-id="${escapeHtml(chatId)}" class="font-black underline decoration-dotted text-rose-600" aria-label="Hapus pesan" title="Hapus pesan">Hapus</button></span>`
+          : '';
 
         if (isMe) {
-            return `<div class="flex justify-end mb-2 animate-fade-in"><div class="max-w-[85%] md:max-w-[75%] bg-emerald-100 text-slate-800 p-3 rounded-2xl rounded-tr-sm shadow-sm border border-emerald-200"><p class="text-[13px] leading-relaxed break-words">${escapeHtml(c.Message)}</p><p class="text-[9px] text-emerald-600 text-right mt-1 font-bold">${time} <i class="fas fa-check-double ml-1"></i></p></div></div>`;
+            return `<div class="flex justify-end mb-2 animate-fade-in"><div class="max-w-[85%] md:max-w-[75%] bg-emerald-100 text-slate-800 p-3 rounded-2xl rounded-tr-sm shadow-sm border border-emerald-200"><p class="text-[13px] leading-relaxed break-words">${escapeHtml(c.Message)}</p><p class="text-[9px] text-emerald-600 text-right mt-1 font-bold">${time} <i class="fas fa-check-double ml-1"></i>${adminActions}</p></div></div>`;
         } else {
             const isSenderAdmin = c.Sender_Role === 'SuperAdmin';
-            return `<div class="flex justify-start mb-2 animate-fade-in"><div class="max-w-[85%] md:max-w-[75%] bg-white text-slate-800 p-3 rounded-2xl rounded-tl-sm shadow-sm border border-slate-200"><p class="text-[10px] font-black ${isSenderAdmin ? 'text-blue-600' : 'text-emerald-600'} mb-1">${escapeHtml(c.Sender_Name)} ${isSenderAdmin ? '<i class="fas fa-certificate text-[8px] text-blue-500"></i>' : ''}</p><p class="text-[13px] leading-relaxed break-words">${escapeHtml(c.Message)}</p><p class="text-[9px] text-slate-400 text-right mt-1 font-bold">${time}</p></div></div>`;
+            return `<div class="flex justify-start mb-2 animate-fade-in"><div class="max-w-[85%] md:max-w-[75%] bg-white text-slate-800 p-3 rounded-2xl rounded-tl-sm shadow-sm border border-slate-200"><p class="text-[10px] font-black ${isSenderAdmin ? 'text-blue-600' : 'text-emerald-600'} mb-1">${escapeHtml(c.Sender_Name)} ${isSenderAdmin ? '<i class="fas fa-certificate text-[8px] text-blue-500"></i>' : ''}</p><p class="text-[13px] leading-relaxed break-words">${escapeHtml(c.Message)}</p><p class="text-[9px] text-slate-400 text-right mt-1 font-bold">${time}${adminActions}</p></div></div>`;
         }
     }).join('');
 
     if (isAtBottom) container.scrollTop = container.scrollHeight;
+}
+
+async function editChatMessage(button) {
+    const messageId = button?.dataset.chatId?.trim();
+    const currentMessage = button?.dataset.message || '';
+    if (!messageId) return showToast('ID pesan chat tidak ditemukan.', 'error');
+    const nextMessage = window.prompt('Ubah pesan chat', currentMessage);
+    if (nextMessage === null) return;
+    const message = nextMessage.trim();
+    if (!message) return showToast('Pesan chat tidak boleh kosong.', 'warning');
+    if (message === currentMessage) return;
+
+    toggleLoader(true);
+    try {
+        const result = await apiCall('POST', {
+            action: 'update',
+            sheet: 'Live_Chat',
+            user: currentUser?.UserID || 'System',
+            data: { id: messageId, Message: message }
+        });
+        if (result?.status !== 'success') throw new Error(result?.message || 'Pesan chat gagal diubah.');
+        invalidateCache('Live_Chat');
+        await getCachedData('Live_Chat', true);
+        await syncChatMessages();
+        showToast('Pesan chat berhasil diubah.', 'success');
+    } catch (error) {
+        showToast(error.message || 'Pesan chat gagal diubah.', 'error');
+    } finally {
+        toggleLoader(false);
+    }
+}
+
+async function deleteChatMessage(button) {
+    const messageId = button?.dataset.chatId?.trim();
+    if (!messageId) return showToast('ID pesan chat tidak ditemukan.', 'error');
+    if (!window.confirm('Hapus pesan chat ini?')) return;
+
+    toggleLoader(true);
+    try {
+        const result = await apiCall('POST', {
+            action: 'softDelete',
+            sheet: 'Live_Chat',
+            user: currentUser?.UserID || 'System',
+            data: { id: messageId }
+        });
+        if (result?.status !== 'success') throw new Error(result?.message || 'Pesan chat gagal dihapus.');
+        invalidateCache('Live_Chat');
+        await getCachedData('Live_Chat', true);
+        await syncChatMessages();
+        showToast('Pesan chat berhasil dihapus.', 'success');
+    } catch (error) {
+        showToast(error.message || 'Pesan chat gagal dihapus.', 'error');
+    } finally {
+        toggleLoader(false);
+    }
 }
 
 async function sendChatMessage() {
