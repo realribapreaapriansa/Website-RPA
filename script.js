@@ -17,6 +17,9 @@ let pendingPublicProfileAccess = false;
 let pendingContentAction = null;
 let recoverySessionToken = '';
 let activeModule = 'Portfolio';
+let activeAdminSection = 'home';
+let adminVisitorPreviewRecords = [];
+let adminAuthPreviewOpen = false;
 let editingId = null;
 let editingRow = null;
 let currentType = null;
@@ -39,32 +42,74 @@ let faceAutoCaptureRunning = false;
 const FACE_MODEL_URL =
     'https://cdn.jsdelivr.net/gh/justadudewhohacks/face-api.js@0.22.2/weights';
 
-const menuGroups = [
-  { title: "Dashboard & Profil", icon: 'fa-house', items: [
-    {sheet:'Home',label:'Home'}, {sheet:'Profile',label:'Profile'}, {sheet:'Contact',label:'Contact'}
-  ]},
-  { title: "Manajemen Konten", icon: 'fa-pen-to-square', items: [
-    {sheet:'Portfolio',label:'Portfolio'}, {sheet:'Blog',label:'Blog'}, {sheet:'Career_Timeline',label:'Career Timeline'}, {sheet:'Documents',label:'Documents'}, {sheet:'Gallery',label:'Gallery'}
-  ]},
-  { title: "Website & Tampilan", icon: 'fa-palette', items: [
-    {sheet:'Web_Branding',label:'Web Branding'}, {sheet:'Dynamic_Menu',label:'Dynamic Menu'}, {sheet:'Banners',label:'Banners'}, {sheet:'Popups',label:'Popups'}, {sheet:'Footer',label:'Footer Website'}, {sheet:'Bantuan',label:'Pusat Panduan'}
-  ]},
-  { title: "Legal", icon: 'fa-scale-balanced', items: [
-    {sheet:'Privacy_Policy',label:'Privacy Policy'}, {sheet:'Terms_Conditions',label:'Terms Conditions'}
-  ]},
-  { title: "Interaksi Visitor", icon: 'fa-users', items: [
-    {sheet:'Visitor_Attendance',label:'Visitor Attendance'}, 
-    {sheet:'Visitor_Consents',label:'Persetujuan Legal'},
-    {sheet:'Live_Chat',label:'Live Chat Inbox'}, 
-    {sheet:'Newsletter',label:'Inbox Newsletter'}, 
-    {sheet:'Notifications',label:'Notifications'}, 
-    {sheet:'Bookmarks',label:'User Bookmarks'}, 
-    {sheet:'Analytics',label:'Analytics Heatmap'}
-  ]},
-  { title: "Sistem & Keamanan", icon: 'fa-shield-halved', items: [
-    {sheet:'Users',label:'Users'}, {sheet:'System_Logs',label:'System Logs'}
-  ]}
+const ADMIN_BOTTOM_SECTIONS = [
+  { id: 'home', label: 'Dashboard Utama', icon: 'fa-chart-pie' },
+  { id: 'interactions', label: 'Interaksi', icon: 'fa-comments' },
+  { id: 'public', label: 'Dashboard Publik', icon: 'fa-globe' },
+  { id: 'visitors', label: 'Dashboard Visitors', icon: 'fa-users' },
+  { id: 'admin', label: 'Dashboard Admin', icon: 'fa-gear' }
 ];
+
+const ADMIN_SECTION_GROUPS = {
+  interactions: {
+    title: 'Interaksi',
+    description: 'Kelola percakapan dan pemberitahuan website.',
+    groups: [{ title: 'Interaksi', items: [
+      { label: 'Chat', description: 'Buka inbox chat pengunjung.', icon: 'fa-comments', sheet: 'Live_Chat' },
+      { label: 'Notification', description: 'Kelola pemberitahuan untuk pengguna.', icon: 'fa-bell', sheet: 'Notifications' }
+    ] }]
+  },
+  public: {
+    title: 'Dashboard Publik',
+    description: 'Kelola konten dan tampilan yang dilihat pengunjung.',
+    groups: [
+      { title: 'Manajemen Konten', items: [
+        { label: 'Home', description: 'Judul dan deskripsi utama website.', icon: 'fa-house', sheet: 'Home' },
+        { label: 'Portofolio', description: 'Kelola portofolio profesional.', icon: 'fa-briefcase', sheet: 'Portfolio' },
+        { label: 'Career', description: 'Kelola riwayat karier.', icon: 'fa-briefcase-clock', sheet: 'Career_Timeline' },
+        { label: 'CV & Lamaran Kerja', description: 'Kelola dokumen profesional.', icon: 'fa-file-lines', sheet: 'Documents' },
+        { label: 'Gallery', description: 'Kelola foto dan media.', icon: 'fa-images', sheet: 'Gallery' },
+        { label: 'Blog', description: 'Kelola artikel website.', icon: 'fa-newspaper', sheet: 'Blog' },
+        { label: 'Profil', description: 'Kelola profil publik website.', icon: 'fa-user', sheet: 'Profile' }
+      ] },
+      { title: 'Footer Atas', items: [
+        { label: 'Logo & Nama Website', description: 'Atur identitas dan tampilan website.', icon: 'fa-palette', sheet: 'Web_Branding' },
+        { label: 'Fitur Reload', description: 'Muat ulang data terbaru dari server.', icon: 'fa-rotate', action: 'refresh' },
+        { label: 'Pusat Bantuan', description: 'Lihat panduan penggunaan website.', icon: 'fa-circle-question', action: 'help' },
+        { label: 'Login & Registrasi', description: 'Pratinjau portal akses Visitor.', icon: 'fa-right-to-bracket', action: 'auth' },
+        { label: 'Taskbar Menu', description: 'Atur menu navigasi website.', icon: 'fa-bars', sheet: 'Dynamic_Menu' }
+      ] },
+      { title: 'Footer Bawah', description: 'Copyright ditampilkan otomatis pada footer website.', items: [
+        { label: 'Judul & Deskripsi Website', description: 'Atur konten identitas website.', icon: 'fa-heading', sheet: 'Home' },
+        { label: 'Contact', description: 'Atur email, nomor WhatsApp, dan alamat.', icon: 'fa-address-card', sheet: 'Contact' },
+        { label: 'Kerjasama', description: 'Atur logo dan tautan perusahaan kerja sama.', icon: 'fa-handshake', sheet: 'Footer' },
+        { label: 'Produk & Layanan', description: 'Atur daftar produk dan layanan.', icon: 'fa-box-open', sheet: 'Footer' },
+        { label: 'Tautan Follow', description: 'Atur tautan media sosial.', icon: 'fa-share-nodes', sheet: 'Footer' },
+        { label: 'Privacy Policy', description: 'Atur isi kebijakan privasi.', icon: 'fa-shield-halved', sheet: 'Privacy_Policy' },
+        { label: 'Terms & Conditions', description: 'Atur isi syarat dan ketentuan.', icon: 'fa-scale-balanced', sheet: 'Terms_Conditions' }
+      ] }
+    ]
+  },
+  admin: {
+    title: 'Dashboard Admin',
+    description: 'Kelola pengaturan website dan data sistem.',
+    groups: [
+      { title: 'Pengaturan Website', items: [
+        { label: 'Kendali Buku Tamu', description: 'Atur status buka atau tutup buku tamu.', icon: 'fa-book-open', sheet: 'Web_Branding' }
+      ] },
+      { title: 'Pengaturan Umum', items: [
+        { label: 'Flash Sebelum Buku Tamu', description: 'Atur tampilan awal dan kendali buku tamu website.', icon: 'fa-bolt', sheet: 'Web_Branding' },
+        { label: 'Font Website', description: 'Atur font dan tampilan teks website.', icon: 'fa-font', sheet: 'Web_Branding' }
+      ] },
+      { title: 'Database', items: [
+        { label: 'System Logs', description: 'Lihat catatan aktivitas sistem.', icon: 'fa-list-check', sheet: 'System_Logs' },
+        { label: 'Visitor Attendance', description: 'Lihat data buku tamu.', icon: 'fa-clipboard-user', sheet: 'Visitor_Attendance' },
+        { label: 'Users', description: 'Kelola data akun Visitor.', icon: 'fa-users', sheet: 'Users' },
+        { label: 'Persetujuan Legal', description: 'Lihat persetujuan pengunjung.', icon: 'fa-file-signature', sheet: 'Visitor_Consents' }
+      ] }
+    ]
+  }
+};
 
 const FOOTER_SOCIAL_LINKS = [
   { key: 'blogger', label: 'Blogger', iconClass: 'fab fa-blogger-b', brandColor: '#ff5722' },
@@ -2632,30 +2677,6 @@ function autoConvertDriveLink(inputEl) {
     }
 }
 
-function setAdminSidebarOpen(open) {
-  const sidebar = document.getElementById('adm-sidebar');
-  const overlay = document.getElementById('adm-sidebar-overlay');
-  if (!sidebar || !overlay) return;
-
-  sidebar.classList.toggle('-translate-x-full', !open);
-  sidebar.classList.toggle('mobile-open', open);
-  overlay.classList.toggle('hidden', !open);
-  document.body.style.overflow = open && window.matchMedia('(max-width: 767px)').matches
-    ? 'hidden'
-    : '';
-}
-
-function closeAdminSidebar() {
-  setAdminSidebarOpen(false);
-}
-
-function toggleAdminSidebar(forceOpen) {
-  const sidebar = document.getElementById('adm-sidebar');
-  if (!sidebar) return;
-  const isOpen = !sidebar.classList.contains('-translate-x-full');
-  setAdminSidebarOpen(typeof forceOpen === 'boolean' ? forceOpen : !isOpen);
-}
-
 function closeModalForm() {
 
   document
@@ -4845,72 +4866,179 @@ function escapeHtml(v) {
     );
 }
 
-function initAdminSidebar() {
-  const sbHTML = document.getElementById('sidebar-menus');
-  if (!sbHTML) return;
+function initAdminBottomNav() {
+  activeAdminSection = 'home';
+  updateAdminBottomNav('home');
+}
 
-  // Tambahkan Tombol Dashboard Khusus Admin
-  sbHTML.innerHTML = `
-    <div class="mb-5">
-       <button type="button" onclick="renderAdminDashboardStats()" class="mod-btn admin-menu-button w-full text-left px-4 py-3 rounded-xl bg-indigo-600 text-white font-bold mb-1 shadow-md text-sm flex items-center gap-3" data-mod="admin-dash">
-          <i class="fas fa-chart-pie"></i> <span class="truncate">Dashboard Utama</span>
-       </button>
-    </div>
-  `;
+function stopAdminChatSync() {
+  if (typeof chatSyncTimer !== 'undefined' && chatSyncTimer) {
+    clearInterval(chatSyncTimer);
+    chatSyncTimer = null;
+  }
+}
 
-  menuGroups.forEach(
-    group => {
+function updateAdminBottomNav(section) {
+  const selected = ADMIN_BOTTOM_SECTIONS.find(item => item.id === section);
+  document.querySelectorAll('[data-admin-section]').forEach(button => {
+    const isActive = button.dataset.adminSection === section;
+    button.classList.toggle('active', isActive);
+    if (isActive) button.setAttribute('aria-current', 'page');
+    else button.removeAttribute('aria-current');
+  });
+  const title = document.getElementById('admin-context-title');
+  if (title && selected) title.textContent = selected.label;
+}
 
-      let block =
-        `<div class="mb-5">
+function openAdminSection(section) {
+  const validSection = ADMIN_BOTTOM_SECTIONS.some(item => item.id === section) ? section : 'home';
+  activeAdminSection = validSection;
+  if (validSection === 'home') return renderAdminDashboardStats();
+  if (validSection === 'visitors') return renderAdminVisitorPreview();
+  return renderAdminSectionOverview(validSection);
+}
 
-          <p class="text-slate-500 font-bold px-3 mb-2 text-[10px] tracking-[0.18em] uppercase flex items-center gap-2">
-            <i class="fas ${
-              group.icon ||
-              'fa-folder'
-            }"></i>
+function renderAdminFeatureCard(item) {
+  let clickHandler = '';
+  if (item.sheet) clickHandler = `loadAdminModule('${item.sheet}')`;
+  else if (item.action === 'refresh') clickHandler = 'refreshManual(this)';
+  else if (item.action === 'help') clickHandler = 'openHelpCenter()';
+  else if (item.action === 'auth') clickHandler = 'previewAuthPortal()';
+  if (!clickHandler) return '';
 
-            ${group.title}
-          </p>`;
+  return `<button type="button" onclick="${clickHandler}" class="group w-full min-h-[104px] rounded-2xl border border-slate-200 bg-white p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-blue-300 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400">
+    <span class="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-600 transition-colors group-hover:bg-blue-600 group-hover:text-white"><i class="fas ${escapeHtml(item.icon || 'fa-folder')}" aria-hidden="true"></i></span>
+    <span class="block text-sm font-black text-slate-800">${escapeHtml(item.label)}</span>
+    <span class="mt-1 block text-xs leading-relaxed text-slate-500">${escapeHtml(item.description || '')}</span>
+  </button>`;
+}
 
-      group.items.forEach(
-        item => {
+function renderAdminSectionOverview(section) {
+  const config = ADMIN_SECTION_GROUPS[section];
+  if (!config) return renderAdminDashboardStats();
 
-          block +=
-            `<button
-              type="button"
-              onclick="loadAdminModule('${item.sheet}')"
-              class="mod-btn admin-menu-button w-full text-left px-4 py-3 rounded-xl text-slate-300 font-semibold mb-1 hover:bg-slate-800 hover:text-white transition-colors text-sm flex items-center gap-3"
-              data-mod="${item.sheet}"
-            >
+  stopAdminChatSync();
+  activeAdminSection = section;
+  activeModule = `admin-section:${section}`;
+  updateAdminBottomNav(section);
+  const welcomePanel = document.getElementById('welcome-panel');
+  const tablePanel = document.getElementById('table-panel');
+  const addButton = document.getElementById('btn-add');
+  document.getElementById('admin-live-chat-panel')?.remove();
+  if (tablePanel) tablePanel.classList.add('hidden');
+  if (addButton) addButton.classList.add('hidden');
+  if (!welcomePanel) return;
 
-              <i class="fas fa-chevron-right text-[9px] text-slate-500"></i>
+  welcomePanel.classList.remove('hidden');
+  welcomePanel.innerHTML = `<div class="mx-auto w-full max-w-7xl space-y-7 animate-fade-in">
+    <header class="rounded-3xl bg-gradient-to-r from-indigo-600 to-blue-600 p-6 text-white shadow-lg sm:p-8">
+      <p class="text-xs font-black uppercase tracking-[.18em] text-blue-100">Pusat Kendali Website</p>
+      <h2 class="mt-2 text-2xl font-black sm:text-3xl">${escapeHtml(config.title)}</h2>
+      <p class="mt-2 max-w-2xl text-sm leading-relaxed text-blue-100">${escapeHtml(config.description)}</p>
+    </header>
+    ${config.groups.map(group => `<section class="space-y-3">
+      <div><h3 class="text-lg font-black text-slate-900">${escapeHtml(group.title)}</h3>${group.description ? `<p class="mt-1 text-xs text-slate-500">${escapeHtml(group.description)}</p>` : ''}</div>
+      <div class="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">${group.items.map(renderAdminFeatureCard).join('')}</div>
+    </section>`).join('')}
+  </div>`;
+}
 
-              <span class="truncate">
-                ${item.label}
-              </span>
+async function renderAdminVisitorPreview() {
+  stopAdminChatSync();
+  activeAdminSection = 'visitors';
+  activeModule = 'admin-section:visitors';
+  updateAdminBottomNav('visitors');
+  const welcomePanel = document.getElementById('welcome-panel');
+  const tablePanel = document.getElementById('table-panel');
+  const addButton = document.getElementById('btn-add');
+  document.getElementById('admin-live-chat-panel')?.remove();
+  if (tablePanel) tablePanel.classList.add('hidden');
+  if (addButton) addButton.classList.add('hidden');
+  if (!welcomePanel) return;
 
-            </button>`;
-        }
-      );
+  welcomePanel.classList.remove('hidden');
+  welcomePanel.innerHTML = '<div class="rounded-3xl border border-slate-200 bg-white p-10 text-center text-slate-500"><i class="fas fa-circle-notch fa-spin mb-3 text-3xl text-blue-600"></i><p class="font-bold">Memuat pratinjau akun...</p></div>';
 
-      block +=
-        '</div>';
-
-      sbHTML.insertAdjacentHTML(
-        'beforeend',
-        block
-      );
+  try {
+    const result = await getCachedData('Users');
+    adminVisitorPreviewRecords = (result.data || []).filter(user => String(user.Role || '').toLowerCase() !== 'superadmin');
+    if (!adminVisitorPreviewRecords.length) {
+      welcomePanel.innerHTML = '<div class="mx-auto max-w-3xl rounded-3xl border border-slate-200 bg-white p-8 text-center"><i class="fas fa-user-plus mb-3 text-3xl text-slate-300"></i><h2 class="text-xl font-black text-slate-800">Pratinjau Akun</h2><p class="mt-2 text-sm text-slate-500">Belum ada akun Visitor yang dapat dipratinjau.</p></div>';
+      return;
     }
-  );
+
+    welcomePanel.innerHTML = `<div class="mx-auto w-full max-w-5xl space-y-5 animate-fade-in">
+      <header><p class="text-xs font-black uppercase tracking-widest text-blue-600">Dashboard Visitors · Akun</p><h2 class="mt-1 text-2xl font-black text-slate-900 sm:text-3xl">Pratinjau Akun</h2><p class="mt-2 text-sm text-slate-500">Pilih akun untuk melihat informasi profil yang tampil bagi Visitor.</p></header>
+      <label class="block max-w-xl text-xs font-bold text-slate-700">Pilih akun Visitor<select id="admin-visitor-preview-select" onchange="renderAdminVisitorAccountPreview(this.value)" class="mt-2 w-full rounded-xl border border-slate-200 bg-white p-3.5 text-sm font-semibold outline-none focus:border-blue-500">
+        ${adminVisitorPreviewRecords.map((user, index) => `<option value="${index}">${escapeHtml(safeText(user.FullName || user.Nama || user.Username, `Visitor ${index + 1}`))} · ${escapeHtml(safeText(user.Email, 'tanpa email'))}</option>`).join('')}
+      </select></label>
+      <div id="admin-visitor-account-preview"></div>
+    </div>`;
+    renderAdminVisitorAccountPreview('0');
+  } catch (error) {
+    welcomePanel.innerHTML = '<div class="rounded-3xl border border-rose-200 bg-rose-50 p-8 text-center font-bold text-rose-700">Data akun Visitor tidak dapat dimuat. Periksa koneksi lalu coba lagi.</div>';
+  }
+}
+
+function renderAdminVisitorAccountPreview(index) {
+  const target = document.getElementById('admin-visitor-account-preview');
+  const user = adminVisitorPreviewRecords[Number(index)];
+  if (!target || !user) return;
+
+  const name = safeText(user.FullName || user.Nama || user.Username, 'Visitor');
+  const email = safeText(user.Email, '-');
+  const image = safeUrl(user.Profile_Image_URL || user.Avatar_URL || user.Photo_URL || user.Foto_URL);
+  const fields = [
+    ['Nama Lengkap', name],
+    ['Email', email],
+    ['Username', safeText(user.Username, '-')],
+    ['Profesi', safeText(user.Position || user.Profession, '-')],
+    ['Perusahaan', safeText(user.Company || user.Company_Name, '-')],
+    ['WhatsApp', safeText(user.WhatsApp || user.Phone, '-')],
+    ['Status', safeText(user.Status, 'Aktif')]
+  ];
+
+  target.innerHTML = `<article class="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+    <div class="flex flex-col items-center gap-4 bg-gradient-to-r from-blue-600 to-indigo-600 p-6 text-center text-white sm:flex-row sm:text-left">
+      ${image ? `<img src="${escapeHtml(image)}" alt="Foto profil ${escapeHtml(name)}" class="h-20 w-20 rounded-2xl border-2 border-white/50 bg-white object-cover">` : `<span class="flex h-20 w-20 items-center justify-center rounded-2xl bg-white/15 text-3xl font-black">${escapeHtml(name.charAt(0).toUpperCase())}</span>`}
+      <div><p class="text-xs font-bold uppercase tracking-wider text-blue-100">Akun Visitor</p><h3 class="mt-1 text-2xl font-black">${escapeHtml(name)}</h3><p class="mt-1 text-sm text-blue-100">${escapeHtml(email)}</p></div>
+    </div>
+    <div class="grid grid-cols-1 gap-3 p-5 sm:grid-cols-2 sm:p-7">${fields.map(([label, value]) => `<div class="rounded-xl bg-slate-50 p-4"><p class="text-[10px] font-black uppercase tracking-wider text-slate-400">${escapeHtml(label)}</p><p class="mt-1 break-words text-sm font-bold text-slate-800">${escapeHtml(value)}</p></div>`).join('')}</div>
+  </article>`;
+}
+
+function previewAuthPortal() {
+  const loginView = document.getElementById('view-login');
+  if (!loginView) return;
+  adminAuthPreviewOpen = true;
+  resetAuthForms();
+  showAuthPanel('login');
+  loginView.classList.remove('hidden');
+}
+
+function closeLoginPortal() {
+  const loginView = document.getElementById('view-login');
+  if (adminAuthPreviewOpen) {
+    adminAuthPreviewOpen = false;
+    if (loginView) loginView.classList.add('hidden');
+    resetAuthForms();
+    return;
+  }
+  history.back();
 }
 
 async function loadAdminModule(sheetName, force = false) {
   activeModule = sheetName;
+  if (sheetName !== 'Live_Chat') stopAdminChatSync();
 
-  if (!force && window.matchMedia('(max-width: 767px)').matches) {
-    closeAdminSidebar();
-  }
+  const publicModules = ['Home', 'Profile', 'Contact', 'Portfolio', 'Career_Timeline', 'Documents', 'Gallery', 'Blog', 'Dynamic_Menu', 'Footer', 'Privacy_Policy', 'Terms_Conditions'];
+  const adminModules = ['System_Logs', 'Visitor_Attendance', 'Users', 'Visitor_Consents'];
+  if (['Live_Chat', 'Notifications'].includes(sheetName)) activeAdminSection = 'interactions';
+  else if (sheetName === 'Web_Branding') {
+    if (!['public', 'admin'].includes(activeAdminSection)) activeAdminSection = 'public';
+  } else if (publicModules.includes(sheetName)) activeAdminSection = 'public';
+  else if (adminModules.includes(sheetName)) activeAdminSection = 'admin';
+  updateAdminBottomNav(activeAdminSection);
 
   const welcomePanel = document.getElementById('welcome-panel');
   const tablePanel = document.getElementById('table-panel');
@@ -4930,14 +5058,6 @@ async function loadAdminModule(sheetName, force = false) {
       }
       tablePanel.classList.add('hidden');
       if (addButton) addButton.classList.add('hidden');
-
-      document.querySelectorAll('.mod-btn').forEach(button => {
-        const active = button.dataset.mod === sheetName;
-        button.classList.toggle('bg-blue-600', active);
-        button.classList.toggle('text-white', active);
-        button.classList.toggle('shadow-md', active);
-        button.classList.toggle('text-slate-300', !active && button.dataset.mod !== 'admin-dash');
-      });
 
       try {
         const [contactResult, menuResult] = await Promise.all([
@@ -4962,17 +5082,6 @@ async function loadAdminModule(sheetName, force = false) {
       chatPanel.innerHTML = buildChatUI('admin');
       tablePanel.parentNode.appendChild(chatPanel);
       
-      // Warnai tombol menu
-      document.querySelectorAll('.mod-btn').forEach(b => {
-          const a = b.dataset.mod === sheetName;
-          b.classList.toggle('bg-blue-600', a);
-          b.classList.toggle('text-white', a);
-          b.classList.toggle('shadow-md', a);
-          b.classList.toggle('text-slate-300', !a);
-      });
-      
-      if (innerWidth < 768) closeAdminSidebar();
-      
       activeChatRoom = 'Global';
       if (typeof renderAdminChatRooms === 'function') await renderAdminChatRooms();
       switchChatRoom('Global');
@@ -4988,19 +5097,6 @@ async function loadAdminModule(sheetName, force = false) {
   const readOnlyModules = ['System_Logs', 'Analytics', 'Visitor_Attendance', 'Visitor_Consents'];
   const readOnly = readOnlyModules.includes(sheetName);
   if (addButton) addButton.classList.toggle('hidden', readOnly);
-
-  document.querySelectorAll('.mod-btn').forEach(button => {
-    const active = button.dataset.mod === sheetName;
-    button.classList.toggle('bg-blue-600', active);
-    button.classList.toggle('text-white', active);
-    button.classList.toggle('shadow-md', active);
-    button.classList.toggle('text-slate-300', !active && button.dataset.mod !== 'admin-dash');
-  });
-
-  const searchDesktop = document.getElementById('admin-search-desktop');
-  const searchMobile = document.getElementById('admin-search-mobile');
-  if (searchDesktop) searchDesktop.value = '';
-  if (searchMobile) searchMobile.value = '';
 
   const tbody = document.getElementById('admin-tbody');
   if (tbody) {
@@ -5679,60 +5775,6 @@ function renderAdminTable(
         }
       )
       .join('');
-}
-
-function filterAdminTable(
-  query
-) {
-
-  const c =
-    memoryCache[
-      activeModule
-    ];
-
-  if (!c) return;
-
-  const q =
-    String(
-      query || ''
-    )
-    .toLowerCase()
-    .trim();
-
-  const rows =
-    q
-      ? c.data.filter(
-          row =>
-            Object.values(
-              row
-            ).some(
-              v =>
-                String(
-                  v ?? ''
-                )
-                .toLowerCase()
-                .includes(q)
-            )
-        )
-      : c.data;
-
-  renderAdminTable(
-    c.headers,
-    rows
-  );
-}
-
-async function refreshAdminModule() {
-  if (!activeModule) return;
-  invalidateCache(activeModule);
-
-  // Bersihkan teks pencarian di kedua kotak input
-  const searchDesktop = document.getElementById('admin-search-desktop');
-  const searchMobile = document.getElementById('admin-search-mobile');
-  if (searchDesktop) searchDesktop.value = '';
-  if (searchMobile) searchMobile.value = '';
-
-  await loadAdminModule(activeModule, true);
 }
 
 function openEditById(
@@ -6974,7 +7016,7 @@ async function handleLogin() {
         navigateTo('public', 'profile', true);
       } else if (currentUser.Role === 'SuperAdmin') {
         pendingPublicProfileAccess = false;
-        initAdminSidebar();
+        initAdminBottomNav();
         switchView('admin');
         
         // FITUR BARU: Paksa Admin langsung melihat Dashboard Utama (Statistik) saat baru masuk
@@ -8084,6 +8126,8 @@ async function refreshCurrentData(isSilent = false) {
                 invalidateCache('Users'); 
                 invalidateCache('System_Logs');
                 if (typeof renderAdminDashboardStats === 'function') await renderAdminDashboardStats();
+            } else if (String(activeModule || '').startsWith('admin-section:')) {
+                await openAdminSection(activeAdminSection);
             } else if (activeModule) {
                 invalidateCache(activeModule);
                 if (typeof loadAdminModule === 'function') await loadAdminModule(activeModule, true);
@@ -8273,23 +8317,17 @@ function buildAccordionList(dataArray, type) {
    ADMIN DASHBOARD UTAMA (STATISTIK LENGKAP & RESPONSIF)
    ================================================================ */
 async function renderAdminDashboardStats() {
+  stopAdminChatSync();
   activeModule = 'admin-dash';
-  if (window.matchMedia('(max-width: 767px)').matches) closeAdminSidebar();
+  activeAdminSection = 'home';
+  updateAdminBottomNav('home');
   
   // Atur visibilitas panel agar rapi
   const tablePanel = document.getElementById('table-panel');
   const welcomePanel = document.getElementById('welcome-panel');
+  document.getElementById('admin-live-chat-panel')?.remove();
   if (tablePanel) tablePanel.classList.add('hidden');
   if (welcomePanel) welcomePanel.classList.remove('hidden');
-
-  // Berikan warna aktif pada menu samping (Sidebar)
-  document.querySelectorAll('.admin-menu-button').forEach(b => {
-      const isDash = b.getAttribute('data-mod') === 'admin-dash';
-      b.classList.toggle('bg-indigo-600', isDash);
-      b.classList.toggle('text-white', isDash);
-      b.classList.toggle('bg-blue-600', false); 
-      b.classList.toggle('text-slate-300', !isDash);
-  });
 
   if (welcomePanel) {
       welcomePanel.innerHTML = `
@@ -8360,31 +8398,6 @@ async function renderAdminDashboardStats() {
                           <h4 class="text-3xl font-black text-slate-800 mt-1">${totalConsents}</h4>
                       </div>
                   </button>
-              </div>
-
-              <!-- Jalan Pintas (Shortcut Fitur Esensial) -->
-              <div class="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm">
-                  <h3 class="font-extrabold text-lg text-slate-800 mb-4 flex items-center gap-2">
-                      <i class="fas fa-bolt text-amber-400"></i> Jalan Pintas
-                  </h3>
-                  <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
-                      <button onclick="loadAdminModule('Portfolio')" class="p-4 bg-slate-50 hover:bg-blue-50 hover:text-blue-600 rounded-2xl text-left transition-colors border border-slate-100 flex flex-col items-start gap-3 group">
-                          <i class="fas fa-briefcase text-xl text-slate-400 group-hover:text-blue-500"></i>
-                          <span class="font-bold text-sm">Kelola Portofolio</span>
-                      </button>
-                      <button onclick="loadAdminModule('Blog')" class="p-4 bg-slate-50 hover:bg-emerald-50 hover:text-emerald-600 rounded-2xl text-left transition-colors border border-slate-100 flex flex-col items-start gap-3 group">
-                          <i class="fas fa-newspaper text-xl text-slate-400 group-hover:text-emerald-500"></i>
-                          <span class="font-bold text-sm">Tulis Artikel Blog</span>
-                      </button>
-                      <button onclick="loadAdminModule('Users')" class="p-4 bg-slate-50 hover:bg-purple-50 hover:text-purple-600 rounded-2xl text-left transition-colors border border-slate-100 flex flex-col items-start gap-3 group">
-                          <i class="fas fa-user-cog text-xl text-slate-400 group-hover:text-purple-500"></i>
-                          <span class="font-bold text-sm">Atur Pengguna</span>
-                      </button>
-                      <button onclick="loadAdminModule('Web_Branding')" class="p-4 bg-slate-50 hover:bg-rose-50 hover:text-rose-600 rounded-2xl text-left transition-colors border border-slate-100 flex flex-col items-start gap-3 group">
-                          <i class="fas fa-palette text-xl text-slate-400 group-hover:text-rose-500"></i>
-                          <span class="font-bold text-sm">Tampilan & Tema</span>
-                      </button>
-                  </div>
               </div>
 
           </div>
