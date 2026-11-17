@@ -8501,7 +8501,6 @@ function renderFooterCooperationLogos(groups) {
       : '';
     return `<div class="footer-cooperation-item">
       <button type="button" class="footer-cooperation-logo" onclick="openFooterCooperation('${escapeHtml(group.key)}')" aria-label="Lihat dokumen kerjasama ${escapeHtml(group.name)}" title="${escapeHtml(group.name)}">${image}${fallback}</button>
-      <span class="footer-cooperation-name">${escapeHtml(group.name)}</span>
     </div>`;
   }).join('');
 }
