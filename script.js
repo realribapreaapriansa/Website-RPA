@@ -71,10 +71,10 @@ const FOOTER_SOCIAL_LINKS = [
   { key: 'facebook', label: 'Facebook', contactKey: 'Facebook_URL', iconClass: 'fab fa-facebook-f', brandColor: '#1877f2' },
   { key: 'github', label: 'GitHub', contactKey: 'GitHub_URL', iconClass: 'fab fa-github', brandColor: '#181717' },
   { key: 'instagram', label: 'Instagram', contactKey: 'Instagram_URL', iconClass: 'fab fa-instagram', brandColor: '#e4405f' },
-  { key: 'lemon8', label: 'Lemon8', iconClass: 'fas fa-lemon', brandColor: '#111111' },
+  { key: 'lemon8', label: 'Lemon8', iconClass: 'fas fa-lemon', brandColor: '#FFF44F' },
   { key: 'linkedin', label: 'LinkedIn', contactKey: 'LinkedIn_URL', iconClass: 'fab fa-linkedin-in', brandColor: '#0a66c2' },
   { key: 'linktree', label: 'Linktree', iconClass: 'fas fa-link', brandColor: '#43e55e' },
-  { key: 'telegram_channel', label: 'Saluran Telegram', iconClass: 'fab fa-telegram', brandColor: '#26a5e4' },
+  { key: 'telegram_channel', label: 'Channel Telegram', iconClass: 'fab fa-telegram', brandColor: '#26a5e4' },
   { key: 'threads', label: 'Threads', iconClass: 'fab fa-threads', brandColor: '#111111' },
   { key: 'tiktok', label: 'TikTok', iconClass: 'fab fa-tiktok', brandColor: '#010101' },
   { key: 'vk', label: 'VK', iconClass: 'fab fa-vk', brandColor: '#0077ff' },
@@ -5018,6 +5018,44 @@ async function loadAdminModule(sheetName, force = false) {
   }
 }
 
+function buildFooterProductAdminRow(record = {}) {
+  const menuId = escapeHtml(safeText(record.MenuID, ''));
+  const productKey = escapeHtml(getFooterProductKey(record.Section));
+  const name = escapeHtml(safeText(record.Label, ''));
+  const url = escapeHtml(safeText(record.URL, ''));
+  const icon = escapeHtml(safeText(record.Icon, ''));
+  const enabled = Boolean(record.MenuID) && isFooterRecordActive(record);
+
+  return `<div data-footer-product-row data-menu-id="${menuId}" data-product-key="${productKey}" class="footer-admin-company-row">
+    <div class="mb-4 flex items-center justify-between gap-3">
+      <span class="text-xs font-black uppercase tracking-widest text-slate-500">Produk atau layanan</span>
+      <button type="button" onclick="removeFooterProductAdminRow(this)" class="text-xs font-bold text-rose-600 hover:text-rose-700">Hapus dari daftar</button>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <label class="block text-xs font-bold text-slate-700">Nama Produk/Layanan<input type="text" data-product-name value="${name}" placeholder="Nama produk atau layanan" class="mt-1 w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-normal outline-none focus:border-blue-500"></label>
+      <label class="block text-xs font-bold text-slate-700">URL Tautan<input type="url" data-product-url value="${url}" placeholder="https://" class="mt-1 w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-normal outline-none focus:border-blue-500"></label>
+      <label class="block text-xs font-bold text-slate-700">Logo (kelas ikon atau URL gambar)<input type="text" data-product-icon value="${icon}" placeholder="fas fa-globe atau https://.../logo.png" class="mt-1 w-full p-3.5 bg-slate-50 border border-slate-200 rounded-xl text-sm font-normal outline-none focus:border-blue-500"></label>
+      <label class="flex items-center gap-2 text-xs font-bold text-slate-700 sm:pt-6"><input type="checkbox" data-product-enabled ${enabled ? 'checked' : ''} class="h-4 w-4 accent-blue-600">Tampilkan di footer</label>
+    </div>
+  </div>`;
+}
+
+function addFooterProductAdminRow() {
+  const list = document.getElementById('footer-product-admin-list');
+  if (list) list.insertAdjacentHTML('beforeend', buildFooterProductAdminRow());
+}
+
+function removeFooterProductAdminRow(button) {
+  const row = button?.closest('[data-footer-product-row]');
+  if (!row) return;
+  if (row.dataset.menuId) {
+    row.dataset.removed = 'true';
+    row.classList.add('hidden');
+  } else {
+    row.remove();
+  }
+}
+
 function buildFooterCooperationAdminRow(group = {}) {
   const key = escapeHtml(safeText(group.key, ''));
   const mouId = escapeHtml(safeText(group.mouId, ''));
@@ -5074,7 +5112,8 @@ function renderAdminFooterEditor(rows, socialRows = []) {
   ];
   const socialRecords = new Map();
   const cooperationRecords = new Map();
-  const productRecords = new Map();
+  const productRecords = [];
+  const legacyChatRecords = [];
   (socialRows || []).forEach(row => {
     const key = getFooterSocialKey(row.Section);
     if (key) socialRecords.set(key, row);
@@ -5100,13 +5139,11 @@ function renderAdminFooterEditor(rows, socialRows = []) {
     }
 
     const product = getFooterProductKey(row.Section);
-    if (product) productRecords.set(product, row);
+    if (product === 'chat') legacyChatRecords.push(row);
+    else if (product) productRecords.push(row);
   });
   const cooperationItems = Array.from(cooperationRecords.values()).sort((a, b) => a.position - b.position);
-  const websiteProduct = productRecords.get('website');
-  const chatProduct = productRecords.get('chat');
-  const websiteProductEnabled = Boolean(websiteProduct && isFooterRecordActive(websiteProduct));
-  const chatProductEnabled = Boolean(chatProduct && isFooterRecordActive(chatProduct));
+  productRecords.sort((a, b) => Number(a.Position || 0) - Number(b.Position || 0));
 
   panel.innerHTML = `
     <div class="max-w-4xl mx-auto space-y-5 animate-fade-in">
@@ -5142,22 +5179,19 @@ function renderAdminFooterEditor(rows, socialRows = []) {
         </div>
       </form>
 
-      <form data-footer-product-editor data-website-id="${escapeHtml(safeText(websiteProduct?.MenuID, ''))}" data-chat-id="${escapeHtml(safeText(chatProduct?.MenuID, ''))}" class="bg-white border border-slate-200 rounded-2xl p-4 sm:p-7 shadow-sm">
-        <div class="mb-5"><h3 class="text-lg font-black text-slate-900">Produk &amp; Layanan</h3><p class="mt-1 text-xs text-slate-500">Nama, logo, dan tautan diisi melalui Dashboard Admin lalu disimpan di spreadsheet Dynamic_Menu.</p></div>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
-            <h4 class="text-xs font-black uppercase tracking-wider text-slate-700">Situs Web</h4>
-            <label class="block text-xs font-bold text-slate-700">Nama Produk/Layanan<input type="text" data-product-website-label value="${escapeHtml(safeText(websiteProduct?.Label, ''))}" placeholder="Isi nama produk atau layanan" class="mt-1 w-full p-3 bg-white border border-slate-200 rounded-xl text-sm font-normal outline-none focus:border-blue-500"></label>
-            <label class="block text-xs font-bold text-slate-700">URL Situs Web<input type="url" data-product-website-url value="${escapeHtml(safeText(websiteProduct?.URL, ''))}" placeholder="https://" class="mt-1 w-full p-3 bg-white border border-slate-200 rounded-xl text-sm font-normal outline-none focus:border-blue-500"></label>
-            <label class="block text-xs font-bold text-slate-700">Logo (kelas ikon atau URL gambar)<input type="text" data-product-website-icon value="${escapeHtml(safeText(websiteProduct?.Icon, ''))}" placeholder="fas fa-globe atau https://.../logo.png" class="mt-1 w-full p-3 bg-white border border-slate-200 rounded-xl text-sm font-normal outline-none focus:border-blue-500"></label>
-            <label class="flex items-center gap-2 text-xs font-bold text-slate-700"><input type="checkbox" data-product-website-enabled ${websiteProductEnabled ? 'checked' : ''} class="h-4 w-4 accent-blue-600">Tampilkan di footer</label>
-          </div>
-          <div class="rounded-xl border border-slate-200 bg-slate-50 p-4 space-y-3">
-            <h4 class="text-xs font-black uppercase tracking-wider text-slate-700">Fitur Chat</h4>
-            <label class="block text-xs font-bold text-slate-700">Nama Produk/Layanan<input type="text" data-product-chat-label value="${escapeHtml(safeText(chatProduct?.Label, ''))}" placeholder="Isi nama fitur Chat" class="mt-1 w-full p-3 bg-white border border-slate-200 rounded-xl text-sm font-normal outline-none focus:border-blue-500"></label>
-            <label class="block text-xs font-bold text-slate-700">Logo (kelas ikon atau URL gambar)<input type="text" data-product-chat-icon value="${escapeHtml(safeText(chatProduct?.Icon, ''))}" placeholder="fas fa-comments atau https://.../logo.png" class="mt-1 w-full p-3 bg-white border border-slate-200 rounded-xl text-sm font-normal outline-none focus:border-blue-500"></label>
-            <label class="flex items-center gap-2 text-xs font-bold text-slate-700"><input type="checkbox" data-product-chat-enabled ${chatProductEnabled ? 'checked' : ''} class="h-4 w-4 accent-blue-600">Tampilkan di footer</label>
-          </div>
+      <form data-footer-product-editor class="bg-white border border-slate-200 rounded-2xl p-4 sm:p-7 shadow-sm">
+        <div class="mb-5 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+          <div><h3 class="text-lg font-black text-slate-900">Produk &amp; Layanan</h3><p class="mt-1 text-xs text-slate-500">Tambahkan beberapa produk atau layanan. Nama, logo, dan tautan disimpan di spreadsheet Dynamic_Menu.</p></div>
+          <button type="button" onclick="addFooterProductAdminRow()" class="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl bg-blue-50 text-blue-700 font-bold text-xs hover:bg-blue-100"><i class="fas fa-plus"></i>Tambah Produk/Layanan</button>
+        </div>
+        <div id="footer-product-admin-list" class="space-y-4">
+          ${productRecords.map(buildFooterProductAdminRow).join('')}
+        </div>
+        <div class="hidden" aria-hidden="true">
+          ${legacyChatRecords.map(row => {
+            const id = safeText(row.MenuID, '');
+            return id ? `<input type="hidden" data-legacy-chat-id value="${escapeHtml(id)}">` : '';
+          }).join('')}
         </div>
         <div class="mt-6 flex justify-end">
           <button type="button" onclick="saveFooterProducts(this)" class="w-full sm:w-auto px-6 py-3.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-sm shadow-lg shadow-blue-600/20"><i class="fas fa-floppy-disk mr-2"></i>Simpan Produk &amp; Layanan</button>
@@ -5312,67 +5346,59 @@ async function saveFooterProducts(button) {
   const form = button?.closest('[data-footer-product-editor]');
   if (!form) return showToast('Form Produk & Layanan tidak ditemukan.', 'error');
 
-  const websiteInput = form.querySelector('[data-product-website-url]');
-  const websiteLabelInput = form.querySelector('[data-product-website-label]');
-  const websiteIconInput = form.querySelector('[data-product-website-icon]');
-  const websiteEnabledInput = form.querySelector('[data-product-website-enabled]');
-  const chatLabelInput = form.querySelector('[data-product-chat-label]');
-  const chatIconInput = form.querySelector('[data-product-chat-icon]');
-  const chatInput = form.querySelector('[data-product-chat-enabled]');
-  const websiteRaw = websiteInput?.value.trim() || '';
-  const websiteUrl = safeUrl(websiteRaw);
-  if (websiteRaw && !websiteUrl) return showToast('URL Situs Web perusahaan tidak valid.', 'error');
-
-  const websiteLabel = websiteLabelInput?.value.trim() || '';
-  const websiteIconRaw = websiteIconInput?.value.trim() || '';
-  const websiteIconUrl = safeUrl(websiteIconRaw);
-  if (websiteIconRaw && !websiteIconUrl && !/^[a-z0-9\s-]+$/i.test(websiteIconRaw)) {
-    return showToast('Logo Situs Web harus berupa kelas ikon atau URL gambar.', 'error');
-  }
-  const chatLabel = chatLabelInput?.value.trim() || '';
-  const chatIconRaw = chatIconInput?.value.trim() || '';
-  const chatIconUrl = safeUrl(chatIconRaw);
-  if (chatIconRaw && !chatIconUrl && !/^[a-z0-9\s-]+$/i.test(chatIconRaw)) {
-    return showToast('Logo Fitur Chat harus berupa kelas ikon atau URL gambar.', 'error');
-  }
-
-  const websiteId = form.dataset.websiteId.trim();
-  const chatId = form.dataset.chatId.trim();
-  const websiteEnabled = Boolean(websiteEnabledInput?.checked);
-  const chatEnabled = Boolean(chatInput?.checked);
   const updates = [];
+  const usedKeys = new Set();
+  const rows = Array.from(form.querySelectorAll('[data-footer-product-row]'));
+  const newKeyPrefix = `product-${Date.now().toString(36)}`;
 
-  if (websiteEnabled && !websiteLabel) return showToast('Isi nama Situs Web sebelum menampilkannya.', 'error');
-  if (websiteId || websiteLabel || websiteUrl || websiteIconRaw) {
+  for (const [index, row] of rows.entries()) {
+    const menuId = row.dataset.menuId.trim();
+    if (row.dataset.removed === 'true') {
+      if (menuId) updates.push({ action: 'update', data: { id: menuId, Status: 'draft' } });
+      continue;
+    }
+
+    const name = row.querySelector('[data-product-name]')?.value.trim() || '';
+    const urlRaw = row.querySelector('[data-product-url]')?.value.trim() || '';
+    const url = safeUrl(urlRaw);
+    const iconRaw = row.querySelector('[data-product-icon]')?.value.trim() || '';
+    const iconUrl = safeUrl(iconRaw);
+    const enabled = Boolean(row.querySelector('[data-product-enabled]')?.checked);
+
+    if (urlRaw && !url) return showToast(`URL ${name || 'Produk/Layanan'} tidak valid.`, 'error');
+    if (iconRaw && !iconUrl && !/^[a-z0-9\s-]+$/i.test(iconRaw)) {
+      return showToast(`Logo ${name || 'Produk/Layanan'} harus berupa kelas ikon atau URL gambar.`, 'error');
+    }
+    if (!name && (url || iconRaw)) return showToast('Nama Produk/Layanan wajib diisi.', 'error');
+    if (enabled && !name) return showToast('Isi nama Produk/Layanan sebelum menampilkannya.', 'error');
+    if (enabled && !url) return showToast(`Isi URL ${name || 'Produk/Layanan'} sebelum menampilkannya.`, 'error');
+    if (!menuId && !name && !url && !iconRaw) continue;
+
+    let key = row.dataset.productKey.trim();
+    if (!key) {
+      key = `${newKeyPrefix}-${index + 1}`;
+      while (usedKeys.has(key)) key = `${key}-${index + 1}`;
+    }
+    usedKeys.add(key);
+
     updates.push({
-      action: websiteId ? 'update' : 'insert',
+      action: menuId ? 'update' : 'insert',
       data: {
-        ...(websiteId ? { id: websiteId } : {}),
-        Label: websiteLabel,
-        Section: 'footer-product:website',
-        Icon: websiteIconUrl || websiteIconRaw,
-        URL: websiteUrl,
-        Position: '1',
-        Status: websiteEnabled && websiteLabel ? 'publish' : 'draft'
+        ...(menuId ? { id: menuId } : {}),
+        Label: name,
+        Section: `footer-product:${key}`,
+        Icon: iconUrl || iconRaw,
+        URL: url,
+        Position: String(index + 1),
+        Status: enabled && name && url ? 'publish' : 'draft'
       }
     });
   }
 
-  if (chatEnabled && !chatLabel) return showToast('Isi nama Fitur Chat sebelum menampilkannya.', 'error');
-  if (chatId || chatLabel || chatIconRaw) {
-    updates.push({
-      action: chatId ? 'update' : 'insert',
-      data: {
-        ...(chatId ? { id: chatId } : {}),
-        Label: chatLabel,
-        Section: 'footer-product:chat',
-        Icon: chatIconUrl || chatIconRaw,
-        URL: '',
-        Position: '2',
-        Status: chatEnabled && chatLabel ? 'publish' : 'draft'
-      }
-    });
-  }
+  form.querySelectorAll('[data-legacy-chat-id]').forEach(input => {
+    const id = input.value.trim();
+    if (id) updates.push({ action: 'update', data: { id, Status: 'draft' } });
+  });
 
   return persistFooterDynamicMenuRows(updates, 'Produk & Layanan berhasil disimpan ke spreadsheet.', 'Belum ada perubahan Produk & Layanan.');
 }
@@ -8481,35 +8507,26 @@ function renderFooterCooperationLogos(groups) {
 }
 
 function renderFooterProducts(rows) {
-  const products = new Map();
-  (rows || []).forEach(row => {
-    const key = getFooterProductKey(row.Section);
-    if (key) products.set(key, row);
-  });
-
-  const website = products.get('website');
-  const chat = products.get('chat');
-  const renderProduct = (record, type, fallbackIcon, brandColor, action) => {
-    if (!record || !isFooterRecordActive(record)) return '';
+  return (rows || [])
+    .filter(record => {
+      const key = getFooterProductKey(record.Section);
+      return key && key !== 'chat' && isFooterRecordActive(record);
+    })
+    .sort((a, b) => Number(a.Position || 0) - Number(b.Position || 0))
+    .map(record => {
     const label = safeText(record.Label, '');
-    if (!label) return '';
+    const url = safeUrl(record.URL);
+    if (!label || !url) return '';
 
     const iconValue = safeText(record.Icon, '');
     const iconUrl = safeUrl(iconValue);
-    const iconClass = !iconUrl && /^[a-z0-9\s-]+$/i.test(iconValue) ? iconValue : fallbackIcon;
+    const iconClass = !iconUrl && /^[a-z0-9\s-]+$/i.test(iconValue) ? iconValue : 'fas fa-box-open';
     const logo = iconUrl
-      ? `<img class="footer-product-logo-image" src="${escapeHtml(iconUrl)}" alt="" loading="lazy" onerror="this.classList.add('is-hidden');this.nextElementSibling.classList.remove('is-hidden')"><i class="footer-product-icon-glyph is-hidden ${escapeHtml(fallbackIcon)}" aria-hidden="true"></i>`
+      ? `<img class="footer-product-logo-image" src="${escapeHtml(iconUrl)}" alt="" loading="lazy" onerror="this.classList.add('is-hidden');this.nextElementSibling.classList.remove('is-hidden')"><i class="footer-product-icon-glyph is-hidden fas fa-box-open" aria-hidden="true"></i>`
       : `<i class="footer-product-icon-glyph ${escapeHtml(iconClass)}" aria-hidden="true"></i>`;
-    const url = type === 'website' ? safeUrl(record.URL) : '';
-    const common = `class="footer-product-icon" data-brand="${type}" style="--product-brand-color:${brandColor}" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}"`;
-
-    if (url) return `<a ${common} href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${logo}</a>`;
-    return `<button type="button" ${common} onclick="switchPublicSection('${action}')">${logo}</button>`;
-  };
-
-  const websiteIcon = renderProduct(website, 'website', 'fas fa-globe', '#2563eb', 'home');
-  const chatIcon = renderProduct(chat, 'chat', 'fas fa-comments', '#10b981', 'chat');
-  return websiteIcon + chatIcon;
+    return `<a class="footer-product-icon" data-brand="product" style="--product-brand-color:#2563eb" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer" aria-label="${escapeHtml(label)}" title="${escapeHtml(label)}">${logo}</a>`;
+  })
+  .join('');
 }
 
 async function openFooterCooperation(companyKey) {
